@@ -1,0 +1,38 @@
+name:    improve
+version: 0.0.0
+
+category: Language
+
+synopsis: A simple imperative, provable programming language for embedded applications.
+
+description:
+    TODO
+
+author:     Tom Hawkins <tomahawkins@gmail.com>
+maintainer: Tom Hawkins <tomahawkins@gmail.com>
+
+license:      BSD3
+license-file: LICENSE
+
+homepage: http://tomahawkins.org
+
+build-type:    Simple
+cabal-version: >= 1.6
+
+library
+    build-depends:
+        base       >= 4.2     && < 5,
+        mtl        >= 1.1.0.1 && < 1.2,
+        process    >= 1.0.1.1 && < 1.2
+
+    exposed-modules:
+        Language.ImProve
+
+    extensions: GADTs, FlexibleInstances
+
+    ghc-options: -W
+
+source-repository head
+    type:     git
+    location: git://github.com/tomahawkins/atom.git
+
