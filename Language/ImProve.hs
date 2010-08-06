@@ -10,6 +10,7 @@ module Language.ImProve
   -- ** Constants
   , true
   , false
+  , constant
   -- ** Variable Reference
   , ref
   -- ** Logical Operations
@@ -35,22 +36,30 @@ module Language.ImProve
   , maximum_
   , limit
   -- ** Arithmetic Operations
-  , div_
+  , (*.)
+  , (/.)
   , mod_
   -- ** Conditional Operator
   , mux
+  -- ** Lookups
+  , linear
   -- * Hierarchical Scope
   , scope
   -- * Variable Declarations
   , bool
+  , bool'
   , int
+  , int'
   , float
+  , float'
+  , input
   -- * Statements
   , Stmt
   -- ** Variable Assignment
   , (<==)
-  -- ** Conditional Branching
-  , branch
+  -- ** Conditional Execution
+  , ifelse
+  , if_
   -- ** Incrementing and decrementing.
   , incr
   , decr
@@ -65,6 +74,7 @@ import Control.Monad
 import Data.List
 import Data.Ratio
 
+infixl 7 *., /., `mod_`
 infix  4 ==., /=., <., <=., >., >=.
 infixl 3 &&.
 infixl 2 ||.
@@ -73,7 +83,9 @@ infixr 1 <==
 type Name = String
 
 -- | Variables.
-data V a = V [Name] a deriving Eq
+data V a
+  = V   [Name] a
+  | VIn [Name]
 
 -- | All types.
 class AllE a where
@@ -96,7 +108,7 @@ instance AllE Float where
   showType _ = "float"
 
 -- | Number types.
-class    NumE a
+class    AllE a => NumE a
 instance NumE Int
 instance NumE Float
 
@@ -106,14 +118,17 @@ data E a where
   Const :: AllE a => a -> E a
   Add   :: NumE a => E a -> E a -> E a
   Sub   :: NumE a => E a -> E a -> E a
-  Mul   :: NumE a => E a -> E a -> E a
-  Div   :: NumE a => E a -> E a -> E a
-  Mod   :: E Int -> E Int -> E Int
+  Mul   :: NumE a => E a -> a -> E a
+  Div   :: NumE a => E a -> a -> E a
+  Mod   :: E Int -> Int -> E Int
   Not   :: E Bool -> E Bool
   And   :: E Bool -> E Bool -> E Bool
   Or    :: E Bool -> E Bool -> E Bool
   Eq    :: AllE a => E a -> E a -> E Bool
   Lt    :: NumE a => E a -> E a -> E Bool
+  Gt    :: NumE a => E a -> E a -> E Bool
+  Le    :: NumE a => E a -> E a -> E Bool
+  Ge    :: NumE a => E a -> E a -> E Bool
   Mux   :: E Bool -> E a -> E a -> E a
 
 instance Show (E a) where show = undefined 
@@ -122,14 +137,14 @@ instance Eq   (E a) where (==) = undefined
 instance (Num a, AllE a, NumE a) => Num (E a) where
   (+) = Add
   (-) = Sub
-  (*) = Mul
+  (*) = error "general multiplication not supported, use (*.)"
   negate a = 0 - a
   abs a = mux (a <. 0) (negate a) a
   signum a = mux (a ==. 0) 0 $ mux (a <. 0) (-1) 1
   fromInteger = Const . fromInteger
 
 instance Fractional (E Float) where
-  (/) = Div
+  (/) = error "general division not supported, use (/.)"
   recip a = 1 / a
   fromRational r = Const $ fromInteger (numerator r) / fromInteger (denominator r)
 
@@ -140,6 +155,10 @@ true = Const True
 -- | False term.
 false :: E Bool
 false = Const False
+
+-- | Arbitrary constants.
+constant :: AllE a => a -> E a
+constant = Const
 
 -- | Logical negation.
 not_ :: E Bool -> E Bool
@@ -187,15 +206,15 @@ a /=. b = not_ (a ==. b)
 
 -- | Greater than.
 (>.) :: NumE a => E a -> E a -> E Bool
-a >. b = b <. a
+(>.) = Gt
 
 -- | Less than or equal.
 (<=.) :: NumE a => E a -> E a -> E Bool
-a <=. b =  not_ (a >. b)
+(<=.) = Le
 
 -- | Greater than or equal.
 (>=.) :: NumE a => E a -> E a -> E Bool
-a >=. b = not_ (a <. b)
+(>=.) = Ge
 
 -- | Returns the minimum of two numbers.
 min_ :: NumE a => E a -> E a -> E a
@@ -220,19 +239,30 @@ limit a b i = max_ min $ min_ max i
   min = min_ a b
   max = max_ a b
 
--- | Integral division.
-div_ :: E Int -> E Int -> E Int
-div_ = Div
+-- | Multiplication.
+(*.) :: NumE a => E a -> a -> E a
+(*.) = Mul
+
+-- | Division.
+(/.) :: NumE a => E a -> a -> E a
+(/.) = Div
 
 -- | Modulo.
-mod_ :: E Int -> E Int -> E Int
+mod_ :: E Int -> Int -> E Int
 mod_ = Mod
+
+-- | Linear interpolation and extrapolation between two points.
+linear :: (Float, Float) -> (Float, Float) -> E Float -> E Float
+linear (x1, y1) (x2, y2) a = a *. slope + constant inter
+  where
+  slope = (y2 - y1) / (x2 - x1)
+  inter = y1 - slope * x1
 
 -- | References a variable.
 ref :: V a -> E a
 ref = Ref
 
--- | Conditional expression.  Note, both branches are evaluated!
+-- | Conditional expression.
 --
 -- > mux test onTrue onFalse
 mux :: E Bool -> E a -> E a -> E a
@@ -254,17 +284,44 @@ var name init = do
   scope <- getScope
   return $ V (scope ++ [name]) init
 
+-- | Input variable declaration.  Input variables are initialized to 0.
+input  :: (Name -> a -> Stmt (V a)) -> Name -> Stmt (E a)
+input _ name = do
+  scope <- getScope
+  return $ ref $ VIn (scope ++ [name])
+
 -- | Boolean variable declaration.
 bool :: Name -> Bool -> Stmt (V Bool)
 bool = var
+
+-- | Boolean variable declaration and immediate assignment.
+bool' :: Name -> E Bool -> Stmt (E Bool)
+bool' name value = do
+  a <- bool name False
+  a <== value
+  return $ ref a
 
 -- | Int variable declaration.
 int :: Name -> Int -> Stmt (V Int)
 int = var
 
+-- | Int variable declaration and immediate assignment.
+int' :: Name -> E Int -> Stmt (E Int)
+int' name value = do
+  a <- int name 0
+  a <== value
+  return $ ref a
+
 -- | Float variable declaration.
 float :: Name -> Float -> Stmt (V Float)
 float = var
+
+-- | Float variable declaration and immediate assignment.
+float' :: Name -> E Float -> Stmt (E Float)
+float' name value = do
+  a <- float name 0
+  a <== value
+  return $ ref a
 
 -- | Increments an E Int.
 incr :: V Int -> Stmt ()
@@ -319,11 +376,15 @@ assume a b = do
   scope <- getScope
   statement $ Assume (scope ++ [a]) b
 
--- | Conditional branch.
-branch :: E Bool -> Stmt () -> Stmt () -> Stmt ()
-branch cond onTrue onFalse = do
+-- | Conditional if-else.
+ifelse :: E Bool -> Stmt () -> Stmt () -> Stmt ()
+ifelse cond onTrue onFalse = do
   scope <- getScope
   statement $ Branch cond (evalStmt scope onTrue) (evalStmt scope onFalse)
+
+-- | Conditional without the else.
+if_ :: E Bool -> Stmt () -> Stmt()
+if_ cond stmt = ifelse cond stmt $ return ()
 
 -- | Generate C code.
 compile :: Name -> Stmt () -> IO ()
@@ -332,44 +393,58 @@ compile name program = do
        "// Generated by ImProve.\n\n"
     ++ "#include <assert.h>\n\n"
     ++ "// XXX Need to build state struct.\n\n"
-    ++ codeStmt stmt
+    ++ "void " ++ name ++ "() {\n"
+    ++ indent (codeStmt stmt)
+    ++ "}\n\n"
   writeFile (name ++ ".h") $
        "// Generated by ImProve.\n\n"
     ++ "// XXX Need to build state struct.\n\n"
+    ++ "void " ++ name ++ "(void);\n\n"
   where
   stmt = evalStmt [] program
 
+  varName :: V a -> String
+  varName a = intercalate "." $ (name ++ "Variables") : names
+    where
+    names = case a of
+      V names _ -> names
+      VIn names -> names
+  
+  codeStmt :: Statement -> String
+  codeStmt a = case a of
+    AssignBool  a b -> varName a ++ " = " ++ codeExpr b ++ ";\n"
+    AssignInt   a b -> varName a ++ " = " ++ codeExpr b ++ ";\n"
+    AssignFloat a b -> varName a ++ " = " ++ codeExpr b ++ ";\n"
+    Branch a b Null -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\n"
+    Branch a b c    -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\nelse {\n" ++ indent (codeStmt c) ++ "}\n"
+    Sequence a b -> codeStmt a ++ codeStmt b
+    Assert names a -> "// assert " ++ intercalate "." names ++ "\nassert(" ++ codeExpr a ++ ");\n"
+    Assume names a -> "// assume " ++ intercalate "." names ++ "\nassert(" ++ codeExpr a ++ ");\n"
+    Null -> ""
+  
+  codeExpr :: E a -> String
+  codeExpr a = case a of
+    Ref a -> varName a
+    Const a -> showConst a
+    Add a b -> group [codeExpr a, "+", codeExpr b]
+    Sub a b -> group [codeExpr a, "-", codeExpr b]
+    Mul a b -> group [codeExpr a, "*", showConst b]
+    Div a b -> group [codeExpr a, "/", showConst b]
+    Mod a b -> group [codeExpr a, "%", showConst b]
+    Not a   -> group ["!", codeExpr a]
+    And a b -> group [codeExpr a, "&&",  codeExpr b]
+    Or  a b -> group [codeExpr a, "||",  codeExpr b]
+    Eq  a b -> group [codeExpr a, "==",  codeExpr b]
+    Lt  a b -> group [codeExpr a, "<",   codeExpr b]
+    Gt  a b -> group [codeExpr a, ">",   codeExpr b]
+    Le  a b -> group [codeExpr a, "<=",  codeExpr b]
+    Ge  a b -> group [codeExpr a, ">=",  codeExpr b]
+    Mux a b c -> group [codeExpr a, "?", codeExpr b, ":", codeExpr c] 
+    where
+    group :: [String] -> String
+    group a = "(" ++ intercalate " " a ++ ")"
+
+
 indent :: String -> String
 indent = unlines . map ("  " ++) . lines
-
-codeStmt :: Statement -> String
-codeStmt a = case a of
-  AssignBool  (V names _) a -> intercalate "." ("state" : names) ++ " = " ++ codeExpr a ++ ";\n"
-  AssignInt   (V names _) a -> intercalate "." ("state" : names) ++ " = " ++ codeExpr a ++ ";\n"
-  AssignFloat (V names _) a -> intercalate "." ("state" : names) ++ " = " ++ codeExpr a ++ ";\n"
-  Branch a b c -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\nelse {\n" ++ indent (codeStmt c) ++ "}\n"
-  Sequence a b -> codeStmt a ++ codeStmt b
-  Assert names a -> "// assert " ++ intercalate "." names ++ "\nassert(" ++ codeExpr a ++ ");\n"
-  Assume names a -> "// assume " ++ intercalate "." names ++ "\nassert(" ++ codeExpr a ++ ");\n"
-  Null -> ""
-
-codeExpr :: E a -> String
-codeExpr a = case a of
-  Ref   (V names _) -> intercalate "." ("state" : names)
-  Const a -> showConst a
-  Add a b -> group [codeExpr a, "+", codeExpr b]
-  Sub a b -> group [codeExpr a, "-", codeExpr b]
-  Mul a b -> group [codeExpr a, "*", codeExpr b]
-  Div a b -> group [codeExpr a, "/", codeExpr b]
-  Mod a b -> group [codeExpr a, "%", codeExpr b]
-  Not a   -> group ["!", codeExpr a]
-  And a b -> group [codeExpr a, "&&", codeExpr b]
-  Or  a b -> group [codeExpr a, "||", codeExpr b]
-  Eq  a b -> group [codeExpr a, "==", codeExpr b]
-  Lt  a b -> group [codeExpr a, "<",  codeExpr b]
-  Mux a b c -> group [codeExpr a, "?", codeExpr b, ":", codeExpr c] 
-  where
-  group :: [String] -> String
-  group a = "(" ++ intercalate " " a ++ ")"
-
 
