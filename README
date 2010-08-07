@@ -1,0 +1,11 @@
+ImProve is an imperative programming language embedded in Haskell.
+
+The intent of ImProve is to provide a restrictive language that can
+be easily verified with formal methods for safety critical and other
+high assurance applications.
+
+
+Status:
+
+Language API and C code generator complete.
+
