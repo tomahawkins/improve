@@ -67,90 +67,24 @@ module Language.ImProve
   -- ** Assertions and  Assumptions
   , assert
   , assume
+  -- * Verification
+  , verify
   -- * Compilation
   , compile
   ) where
 
 import Control.Monad
 import Data.List
-import Data.Ratio
+import Text.Printf
+
+import Language.ImProve.Core
+import qualified Language.ImProve.Verify as V
 
 infixl 7 *., /., `div_`, `mod_`
 infix  4 ==., /=., <., <=., >., >=.
 infixl 3 &&.
 infixl 2 ||.
 infixr 1 <==
-
-type Name = String
-
--- | Variables.
-data V a
-  = V   [Name] a
-  | VIn [Name]
-
--- | All types.
-class AllE a where
-  showConst :: a -> String
-  showType  :: a -> String
-  zero      :: (Name -> a -> Stmt (V a)) -> a
-
-instance AllE Bool where
-  showConst a = case a of
-    True  -> "1"
-    False -> "0"
-  showType _ = "int"
-  zero = const False
-
-instance AllE Int where
-  showConst = show
-  showType _ = "int"
-  zero = const 0
-  
-instance AllE Float where
-  showConst = show
-  showType _ = "float"
-  zero = const 0
-
--- | Number types.
-class    AllE a => NumE a
-instance NumE Int
-instance NumE Float
-
--- | Core expressions.
-data E a where
-  Ref   :: AllE a => V a -> E a
-  Const :: AllE a => a -> E a
-  Add   :: NumE a => E a -> E a -> E a
-  Sub   :: NumE a => E a -> E a -> E a
-  Mul   :: NumE a => E a -> a -> E a
-  Div   :: NumE a => E a -> a -> E a
-  Mod   :: E Int -> Int -> E Int
-  Not   :: E Bool -> E Bool
-  And   :: E Bool -> E Bool -> E Bool
-  Or    :: E Bool -> E Bool -> E Bool
-  Eq    :: AllE a => E a -> E a -> E Bool
-  Lt    :: NumE a => E a -> E a -> E Bool
-  Gt    :: NumE a => E a -> E a -> E Bool
-  Le    :: NumE a => E a -> E a -> E Bool
-  Ge    :: NumE a => E a -> E a -> E Bool
-  Mux   :: AllE a => E Bool -> E a -> E a -> E a
-
-instance Show (E a) where show = undefined 
-instance Eq   (E a) where (==) = undefined
-
-instance (Num a, AllE a, NumE a) => Num (E a) where
-  (+) = Add
-  (-) = Sub
-  (*) = error "general multiplication not supported, use (*.)"
-  negate a = 0 - a
-  abs a = mux (a <. 0) (negate a) a
-  signum a = mux (a ==. 0) 0 $ mux (a <. 0) (-1) 1
-  fromInteger = Const . fromInteger
-
-instance Fractional (E Float) where
-  (/) = error "general division not supported, use (/.)"
-  recip a = 1 / a
-  fromRational r = Const $ fromInteger (numerator r) / fromInteger (denominator r)
 
 -- | True term.
 true :: E Bool
@@ -301,14 +235,14 @@ put a = Stmt $ \ _ -> ((), a)
 var :: AllE a => Name -> a -> Stmt (V a)
 var name init = do
   (path, items, stmt) <- get
-  put (path, Variable name (showType init) (showConst init) : items, stmt)
+  put (path, Variable False name (showType init) (showConst init) : items, stmt)
   return $ V (path ++ [name]) init
 
 -- | Input variable declaration.  Input variables are initialized to 0.
 input  :: AllE a => (Name -> a -> Stmt (V a)) -> Name -> Stmt (E a)
 input f name = do
   (path, items, stmt) <- get
-  put (path, Variable name (showType $ zero f) (showConst $ zero f) : items, stmt)
+  put (path, Variable True name (showType $ zero f) (showConst $ zero f) : items, stmt)
   return $ ref $ VIn (path ++ [name])
 
 -- | Boolean variable declaration.
@@ -351,16 +285,6 @@ incr a = a <== ref a + 1
 -- | Decrements an E Int.
 decr :: V Int -> Stmt ()
 decr a = a <== ref a - 1
-
-data Statement
-  = AssignBool  (V Bool ) (E Bool )
-  | AssignInt   (V Int  ) (E Int  )
-  | AssignFloat (V Float) (E Float)
-  | Branch (E Bool) Statement Statement
-  | Sequence Statement Statement
-  | Assert [Name] (E Bool)
-  | Assume [Name] (E Bool)
-  | Null
 
 -- | The Stmt monad holds variable declarations and statements.
 data Stmt a = Stmt (([Name], [Scope], Statement) -> (a, ([Name], [Scope], Statement)))
@@ -409,6 +333,12 @@ ifelse cond onTrue onFalse = do
 -- | Conditional without the else.
 if_ :: E Bool -> Stmt () -> Stmt()
 if_ cond stmt = ifelse cond stmt $ return ()
+
+-- | Verify a program.
+verify :: Stmt () -> IO (Maybe Bool)
+verify program = V.verify stmt
+  where
+  (_, _, stmt) = evalStmt [] [] program
 
 -- | Generate C code.
 compile :: Name -> Stmt () -> IO ()
@@ -474,24 +404,24 @@ indent = unlines . map ("  " ++) . lines
 
 data Scope
   = Scope Name [Scope]
-  | Variable Name String String  -- name type init
+  | Variable Bool Name String String  -- input name type init
   deriving Eq
 
 instance Ord Scope where
   compare a b = case (a, b) of
     (Scope a _, Scope b _) -> compare a b
-    (Variable a _ _, Variable b _ _) -> compare a b
-    (Variable _ _ _, Scope _ _) -> LT
-    (Scope _ _, Variable _ _ _) -> GT
+    (Variable _ a _ _, Variable _ b _ _) -> compare a b
+    (Variable _ _ _ _, Scope _ _) -> LT
+    (Scope _ _, Variable _ _ _ _) -> GT
 
 codeVariables :: Bool -> Scope -> String
 codeVariables define a = (if define then "" else "extern ") ++ init (init (f1 a)) ++ (if define then " =\n" ++ f2 a else "") ++ ";\n"
   where
   f1 a = case a of
     Scope     name items -> "struct {  // " ++ name ++ "\n" ++ indent (concatMap f1 $ sort items) ++ "} " ++ name ++ ";\n"
-    Variable  name typ _ -> typ ++ " " ++ name ++ ";\n"
+    Variable  input name typ _ -> printf "%-5s %-25s;%s\n" typ name (if input then "  // input" else "")
 
   f2 a = case a of
-    Scope    name items  -> "{  // " ++ name ++ "\n" ++ indent (intercalate ",\n" (map f2 $ sort items)) ++ "\n}"
-    Variable name _ init -> "/* " ++ name ++ " */  " ++ init
+    Scope    name items  -> "{  // " ++ name ++ "\n" ++ indent (' ' : drop 1 (concatMap f2 $ sort items)) ++ "\n}"
+    Variable _ name _ init -> printf ", %-15s  // %s\n" init name
 
