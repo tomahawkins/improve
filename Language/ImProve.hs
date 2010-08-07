@@ -38,6 +38,7 @@ module Language.ImProve
   -- ** Arithmetic Operations
   , (*.)
   , (/.)
+  , div_
   , mod_
   -- ** Conditional Operator
   , mux
@@ -74,7 +75,7 @@ import Control.Monad
 import Data.List
 import Data.Ratio
 
-infixl 7 *., /., `mod_`
+infixl 7 *., /., `div_`, `mod_`
 infix  4 ==., /=., <., <=., >., >=.
 infixl 3 &&.
 infixl 2 ||.
@@ -91,21 +92,24 @@ data V a
 class AllE a where
   showConst :: a -> String
   showType  :: a -> String
+  zero      :: (Name -> a -> Stmt (V a)) -> a
 
 instance AllE Bool where
   showConst a = case a of
     True  -> "1"
     False -> "0"
-
   showType _ = "int"
+  zero = const False
 
 instance AllE Int where
   showConst = show
   showType _ = "int"
+  zero = const 0
   
 instance AllE Float where
   showConst = show
   showType _ = "float"
+  zero = const 0
 
 -- | Number types.
 class    AllE a => NumE a
@@ -114,7 +118,7 @@ instance NumE Float
 
 -- | Core expressions.
 data E a where
-  Ref   :: V a -> E a
+  Ref   :: AllE a => V a -> E a
   Const :: AllE a => a -> E a
   Add   :: NumE a => E a -> E a -> E a
   Sub   :: NumE a => E a -> E a -> E a
@@ -129,7 +133,7 @@ data E a where
   Gt    :: NumE a => E a -> E a -> E Bool
   Le    :: NumE a => E a -> E a -> E Bool
   Ge    :: NumE a => E a -> E a -> E Bool
-  Mux   :: E Bool -> E a -> E a -> E a
+  Mux   :: AllE a => E Bool -> E a -> E a -> E a
 
 instance Show (E a) where show = undefined 
 instance Eq   (E a) where (==) = undefined
@@ -243,13 +247,20 @@ limit a b i = max_ min $ min_ max i
 (*.) :: NumE a => E a -> a -> E a
 (*.) = Mul
 
--- | Division.
-(/.) :: NumE a => E a -> a -> E a
-(/.) = Div
+-- | Floating point division.
+(/.) :: E Float -> Float -> E Float
+_ /. 0 = error "divide by zero (/.)"
+a /. b = Div a b
+
+-- | Integer division.
+div_ :: E Int -> Int -> E Int
+div_ _ 0 = error "divide by zero (div_)"
+div_ a b = Div a b
 
 -- | Modulo.
 mod_ :: E Int -> Int -> E Int
-mod_ = Mod
+mod_ _ 0 = error "divide by zero (mod_)"
+mod_ a b = Mod a b
 
 -- | Linear interpolation and extrapolation between two points.
 linear :: (Float, Float) -> (Float, Float) -> E Float -> E Float
@@ -259,36 +270,46 @@ linear (x1, y1) (x2, y2) a = a *. slope + constant inter
   inter = y1 - slope * x1
 
 -- | References a variable.
-ref :: V a -> E a
+ref :: AllE a => V a -> E a
 ref = Ref
 
 -- | Conditional expression.
 --
 -- > mux test onTrue onFalse
-mux :: E Bool -> E a -> E a -> E a
+mux :: AllE a => E Bool -> E a -> E a -> E a
 mux = Mux
 
 -- | Creates a hierarchical scope.
 scope :: Name -> Stmt a -> Stmt a
 scope name (Stmt f0) = Stmt f1
   where
-  f1 (scope, statement) = (a, (scope, statement1))
+  f1 (path, items, statement) = (a, (path, Scope name items0 : items, statement1))
     where
-    (a, (_, statement1)) = f0 (scope ++ [name], statement)
+    (a, (_, items0, statement1)) = f0 (path ++ [name], [], statement)
   
-getScope :: Stmt [Name]
-getScope = Stmt $ \ (scope, statement) -> (scope, (scope, statement))
+get :: Stmt ([Name], [Scope], Statement)
+get = Stmt $ \ a -> (a, a)
+
+getPath :: Stmt [Name]
+getPath = do
+  (path, _, _) <- get
+  return path
+
+put :: ([Name], [Scope], Statement) -> Stmt ()
+put a = Stmt $ \ _ -> ((), a)
 
 var :: AllE a => Name -> a -> Stmt (V a)
 var name init = do
-  scope <- getScope
-  return $ V (scope ++ [name]) init
+  (path, items, stmt) <- get
+  put (path, Variable name (showType init) (showConst init) : items, stmt)
+  return $ V (path ++ [name]) init
 
 -- | Input variable declaration.  Input variables are initialized to 0.
-input  :: (Name -> a -> Stmt (V a)) -> Name -> Stmt (E a)
-input _ name = do
-  scope <- getScope
-  return $ ref $ VIn (scope ++ [name])
+input  :: AllE a => (Name -> a -> Stmt (V a)) -> Name -> Stmt (E a)
+input f name = do
+  (path, items, stmt) <- get
+  put (path, Variable name (showType $ zero f) (showConst $ zero f) : items, stmt)
+  return $ ref $ VIn (path ++ [name])
 
 -- | Boolean variable declaration.
 bool :: Name -> Bool -> Stmt (V Bool)
@@ -342,7 +363,7 @@ data Statement
   | Null
 
 -- | The Stmt monad holds variable declarations and statements.
-data Stmt a = Stmt (([Name], Statement) -> (a, ([Name], Statement)))
+data Stmt a = Stmt (([Name], [Scope], Statement) -> (a, ([Name], [Scope], Statement)))
 
 instance Monad Stmt where
   return a = Stmt $ \ s -> (a, s)
@@ -354,10 +375,10 @@ instance Monad Stmt where
       Stmt f4 = f2 a
 
 statement :: Statement -> Stmt ()
-statement a = Stmt $ \ (scope, statement) -> ((), (scope, Sequence statement a))
+statement a = Stmt $ \ (path, scope, statement) -> ((), (path, scope, Sequence statement a))
 
-evalStmt :: [Name] -> Stmt () -> Statement
-evalStmt scope (Stmt f) = snd $ snd $ f (scope, Null)
+evalStmt :: [Name] -> [Scope] -> Stmt () -> ([Name], [Scope], Statement)
+evalStmt path items (Stmt f) = snd $ f (path, items, Null)
 
 class    Assign a     where (<==) :: V a -> E a -> Stmt ()
 instance Assign Bool  where a <== b = statement $ AssignBool  a b
@@ -367,20 +388,23 @@ instance Assign Float where a <== b = statement $ AssignFloat a b
 -- | Assert that a condition is true.
 assert :: Name -> E Bool -> Stmt ()
 assert a b = do
-  scope <- getScope
-  statement $ Assert (scope ++ [a]) b
+  path <- getPath
+  statement $ Assert (path ++ [a]) b
 
 -- | Declare an assumption condition is true.
 assume :: Name -> E Bool -> Stmt ()
 assume a b = do
-  scope <- getScope
-  statement $ Assume (scope ++ [a]) b
+  path <- getPath
+  statement $ Assume (path ++ [a]) b
 
 -- | Conditional if-else.
 ifelse :: E Bool -> Stmt () -> Stmt () -> Stmt ()
 ifelse cond onTrue onFalse = do
-  scope <- getScope
-  statement $ Branch cond (evalStmt scope onTrue) (evalStmt scope onFalse)
+  (path, items, stmt) <- get
+  let (_, items1, stmt1) = evalStmt path items  onTrue
+      (_, items2, stmt2) = evalStmt path items1 onFalse
+  put (path, items2, stmt)
+  statement $ Branch cond stmt1 stmt2
 
 -- | Conditional without the else.
 if_ :: E Bool -> Stmt () -> Stmt()
@@ -392,59 +416,82 @@ compile name program = do
   writeFile (name ++ ".c") $
        "// Generated by ImProve.\n\n"
     ++ "#include <assert.h>\n\n"
-    ++ "// XXX Need to build state struct.\n\n"
+    ++ codeVariables True scope ++ "\n"
     ++ "void " ++ name ++ "() {\n"
     ++ indent (codeStmt stmt)
     ++ "}\n\n"
   writeFile (name ++ ".h") $
        "// Generated by ImProve.\n\n"
-    ++ "// XXX Need to build state struct.\n\n"
+    ++ codeVariables False scope ++ "\n"
     ++ "void " ++ name ++ "(void);\n\n"
   where
-  stmt = evalStmt [] program
+  (_, items, stmt) = evalStmt [name ++ "Variables"] [] program
+  scope = Scope (name ++ "Variables") items
 
-  varName :: V a -> String
-  varName a = intercalate "." $ (name ++ "Variables") : names
-    where
-    names = case a of
-      V names _ -> names
-      VIn names -> names
-  
-  codeStmt :: Statement -> String
-  codeStmt a = case a of
-    AssignBool  a b -> varName a ++ " = " ++ codeExpr b ++ ";\n"
-    AssignInt   a b -> varName a ++ " = " ++ codeExpr b ++ ";\n"
-    AssignFloat a b -> varName a ++ " = " ++ codeExpr b ++ ";\n"
-    Branch a b Null -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\n"
-    Branch a b c    -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\nelse {\n" ++ indent (codeStmt c) ++ "}\n"
-    Sequence a b -> codeStmt a ++ codeStmt b
-    Assert names a -> "// assert " ++ intercalate "." names ++ "\nassert(" ++ codeExpr a ++ ");\n"
-    Assume names a -> "// assume " ++ intercalate "." names ++ "\nassert(" ++ codeExpr a ++ ");\n"
-    Null -> ""
-  
-  codeExpr :: E a -> String
-  codeExpr a = case a of
-    Ref a -> varName a
-    Const a -> showConst a
-    Add a b -> group [codeExpr a, "+", codeExpr b]
-    Sub a b -> group [codeExpr a, "-", codeExpr b]
-    Mul a b -> group [codeExpr a, "*", showConst b]
-    Div a b -> group [codeExpr a, "/", showConst b]
-    Mod a b -> group [codeExpr a, "%", showConst b]
-    Not a   -> group ["!", codeExpr a]
-    And a b -> group [codeExpr a, "&&",  codeExpr b]
-    Or  a b -> group [codeExpr a, "||",  codeExpr b]
-    Eq  a b -> group [codeExpr a, "==",  codeExpr b]
-    Lt  a b -> group [codeExpr a, "<",   codeExpr b]
-    Gt  a b -> group [codeExpr a, ">",   codeExpr b]
-    Le  a b -> group [codeExpr a, "<=",  codeExpr b]
-    Ge  a b -> group [codeExpr a, ">=",  codeExpr b]
-    Mux a b c -> group [codeExpr a, "?", codeExpr b, ":", codeExpr c] 
-    where
-    group :: [String] -> String
-    group a = "(" ++ intercalate " " a ++ ")"
+varName :: V a -> String
+varName a = intercalate "." names
+  where
+  names = case a of
+    V   names _ -> names
+    VIn names   -> names
 
+codeStmt :: Statement -> String
+codeStmt a = case a of
+  AssignBool  a b -> varName a ++ " = " ++ codeExpr b ++ ";\n"
+  AssignInt   a b -> varName a ++ " = " ++ codeExpr b ++ ";\n"
+  AssignFloat a b -> varName a ++ " = " ++ codeExpr b ++ ";\n"
+  Branch a b Null -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\n"
+  Branch a b c    -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\nelse {\n" ++ indent (codeStmt c) ++ "}\n"
+  Sequence a b -> codeStmt a ++ codeStmt b
+  Assert names a -> "// assert " ++ intercalate "." names ++ "\nassert(" ++ codeExpr a ++ ");\n"
+  Assume names a -> "// assume " ++ intercalate "." names ++ "\nassert(" ++ codeExpr a ++ ");\n"
+  Null -> ""
+
+codeExpr :: E a -> String
+codeExpr a = case a of
+  Ref a -> varName a
+  Const a -> showConst a
+  Add a b -> group [codeExpr a, "+", codeExpr b]
+  Sub a b -> group [codeExpr a, "-", codeExpr b]
+  Mul a b -> group [codeExpr a, "*", showConst b]
+  Div a b -> group [codeExpr a, "/", showConst b]
+  Mod a b -> group [codeExpr a, "%", showConst b]
+  Not a   -> group ["!", codeExpr a]
+  And a b -> group [codeExpr a, "&&",  codeExpr b]
+  Or  a b -> group [codeExpr a, "||",  codeExpr b]
+  Eq  a b -> group [codeExpr a, "==",  codeExpr b]
+  Lt  a b -> group [codeExpr a, "<",   codeExpr b]
+  Gt  a b -> group [codeExpr a, ">",   codeExpr b]
+  Le  a b -> group [codeExpr a, "<=",  codeExpr b]
+  Ge  a b -> group [codeExpr a, ">=",  codeExpr b]
+  Mux a b c -> group [codeExpr a, "?", codeExpr b, ":", codeExpr c] 
+  where
+  group :: [String] -> String
+  group a = "(" ++ intercalate " " a ++ ")"
 
 indent :: String -> String
 indent = unlines . map ("  " ++) . lines
+
+data Scope
+  = Scope Name [Scope]
+  | Variable Name String String  -- name type init
+  deriving Eq
+
+instance Ord Scope where
+  compare a b = case (a, b) of
+    (Scope a _, Scope b _) -> compare a b
+    (Variable a _ _, Variable b _ _) -> compare a b
+    (Variable _ _ _, Scope _ _) -> LT
+    (Scope _ _, Variable _ _ _) -> GT
+
+codeVariables :: Bool -> Scope -> String
+codeVariables define a = (if define then "" else "extern ") ++ init (init (f1 a)) ++ (if define then " =\n" ++ f2 a else "") ++ ";\n"
+  where
+  f1 a = case a of
+    Scope     name items -> "struct {  // " ++ name ++ "\n" ++ indent (concatMap f1 $ sort items) ++ "} " ++ name ++ ";\n"
+    Variable  name typ _ -> typ ++ " " ++ name ++ ";\n"
+
+  f2 a = case a of
+    Scope    name items  -> "{  // " ++ name ++ "\n" ++ indent (intercalate ",\n" (map f2 $ sort items)) ++ "\n}"
+    Variable name _ init -> "/* " ++ name ++ " */  " ++ init
 
