@@ -11,6 +11,7 @@ module Language.ImProve
   , true
   , false
   , constant
+  , zero
   -- ** Variable Reference
   , ref
   -- ** Logical Operations
@@ -29,7 +30,7 @@ module Language.ImProve
   , (<=.)
   , (>.)
   , (>=.)
-  -- ** Min, max, and limiting.
+  -- ** Min, Max, and Limiting
   , min_
   , minimum_
   , max_
@@ -46,7 +47,9 @@ module Language.ImProve
   , linear
   -- * Hierarchical Scope
   , scope
-  -- * Variable Declarations
+  -- * Statements
+  , Stmt
+  -- ** Variable Declarations
   , bool
   , bool'
   , int
@@ -54,8 +57,6 @@ module Language.ImProve
   , float
   , float'
   , input
-  -- * Statements
-  , Stmt
   -- ** Variable Assignment
   , (<==)
   -- ** Conditional Execution
@@ -330,7 +331,7 @@ ifelse cond onTrue onFalse = do
   put (path, items2, stmt)
   statement $ Branch cond stmt1 stmt2
 
--- | Conditional without the else.
+-- | Conditional if without the else.
 if_ :: E Bool -> Stmt () -> Stmt()
 if_ cond stmt = ifelse cond stmt $ return ()
 
@@ -402,6 +403,11 @@ codeExpr a = case a of
 indent :: String -> String
 indent = unlines . map ("  " ++) . lines
 
+indent' :: String -> String
+indent' a = case lines a of
+  [] -> []
+  (a:b) -> a ++ "\n" ++ indent (unlines b)
+
 data Scope
   = Scope Name [Scope]
   | Variable Bool Name String String  -- input name type init
@@ -415,13 +421,13 @@ instance Ord Scope where
     (Scope _ _, Variable _ _ _ _) -> GT
 
 codeVariables :: Bool -> Scope -> String
-codeVariables define a = (if define then "" else "extern ") ++ init (init (f1 a)) ++ (if define then " =\n" ++ f2 a else "") ++ ";\n"
+codeVariables define a = (if define then "" else "extern ") ++ init (init (f1 a)) ++ (if define then " =\n  " ++ f2 a else "") ++ ";\n"
   where
   f1 a = case a of
     Scope     name items -> "struct {  // " ++ name ++ "\n" ++ indent (concatMap f1 $ sort items) ++ "} " ++ name ++ ";\n"
     Variable  input name typ _ -> printf "%-5s %-25s;%s\n" typ name (if input then "  // input" else "")
 
   f2 a = case a of
-    Scope    name items  -> "{  // " ++ name ++ "\n" ++ indent (' ' : drop 1 (concatMap f2 $ sort items)) ++ "\n}"
-    Variable _ name _ init -> printf ", %-15s  // %s\n" init name
+    Scope    name items -> indent' $ "{ " ++ (intercalate ", " $ map f2 $ sort items) ++ "}  // " ++ name ++ "\n"
+    Variable _ name _ init -> printf "%-15s  // %s\n" init name
 
