@@ -28,6 +28,7 @@ library
         Language.ImProve
         Language.ImProve.Code
         Language.ImProve.Core
+        Language.ImProve.Tree
         Language.ImProve.Verify
 
     extensions: GADTs, FlexibleInstances

@@ -11,9 +11,7 @@ import Data.Ratio
 
 type Name = String
 
-data V a
-  = V   [Name] a
-  | VIn [Name]
+data V a = V Bool [Name] a
 
 class AllE a where
   showConst :: a -> String

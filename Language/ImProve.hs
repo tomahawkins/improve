@@ -78,7 +78,6 @@ import Control.Monad
 
 import Language.ImProve.Core
 import qualified Language.ImProve.Verify as V
-import Language.ImProve.Code   hiding (code)
 import qualified Language.ImProve.Code   as C
 
 infixl 7 *., /., `div_`, `mod_`
@@ -218,33 +217,28 @@ mux = Mux
 scope :: Name -> Stmt a -> Stmt a
 scope name (Stmt f0) = Stmt f1
   where
-  f1 (path, items, statement) = (a, (path, Scope name items0 : items, statement1))
+  f1 (path, statement) = (a, (path, statement1))
     where
-    (a, (_, items0, statement1)) = f0 (path ++ [name], [], statement)
+    (a, (_, statement1)) = f0 (path ++ [name], statement)
   
-get :: Stmt ([Name], [Scope], Statement)
+get :: Stmt ([Name], Statement)
 get = Stmt $ \ a -> (a, a)
 
 getPath :: Stmt [Name]
 getPath = do
-  (path, _, _) <- get
+  (path, _) <- get
   return path
-
-put :: ([Name], [Scope], Statement) -> Stmt ()
-put a = Stmt $ \ _ -> ((), a)
 
 var :: AllE a => Name -> a -> Stmt (V a)
 var name init = do
-  (path, items, stmt) <- get
-  put (path, Variable False name (showType init) (showConst init) : items, stmt)
-  return $ V (path ++ [name]) init
+  path <- getPath
+  return $ V False (path ++ [name]) init
 
 -- | Input variable declaration.  Input variables are initialized to 0.
 input  :: AllE a => (Name -> a -> Stmt (V a)) -> Name -> Stmt (E a)
 input f name = do
-  (path, items, stmt) <- get
-  put (path, Variable True name (showType $ zero f) (showConst $ zero f) : items, stmt)
-  return $ ref $ VIn (path ++ [name])
+  path <- getPath
+  return $ ref $ V True (path ++ [name]) $ zero f
 
 -- | Boolean variable declaration.
 bool :: Name -> Bool -> Stmt (V Bool)
@@ -288,7 +282,7 @@ decr :: V Int -> Stmt ()
 decr a = a <== ref a - 1
 
 -- | The Stmt monad holds variable declarations and statements.
-data Stmt a = Stmt (([Name], [Scope], Statement) -> (a, ([Name], [Scope], Statement)))
+data Stmt a = Stmt (([Name], Statement) -> (a, ([Name], Statement)))
 
 instance Monad Stmt where
   return a = Stmt $ \ s -> (a, s)
@@ -300,10 +294,10 @@ instance Monad Stmt where
       Stmt f4 = f2 a
 
 statement :: Statement -> Stmt ()
-statement a = Stmt $ \ (path, scope, statement) -> ((), (path, scope, Sequence statement a))
+statement a = Stmt $ \ (path, statement) -> ((), (path, Sequence statement a))
 
-evalStmt :: [Name] -> [Scope] -> Stmt () -> ([Name], [Scope], Statement)
-evalStmt path items (Stmt f) = snd $ f (path, items, Null)
+evalStmt :: [Name] -> Stmt () -> ([Name], Statement)
+evalStmt path (Stmt f) = snd $ f (path, Null)
 
 class    Assign a     where (<==) :: V a -> E a -> Stmt ()
 instance Assign Bool  where a <== b = statement $ AssignBool  a b
@@ -325,10 +319,9 @@ assume a b = do
 -- | Conditional if-else.
 ifelse :: E Bool -> Stmt () -> Stmt () -> Stmt ()
 ifelse cond onTrue onFalse = do
-  (path, items, stmt) <- get
-  let (_, items1, stmt1) = evalStmt path items  onTrue
-      (_, items2, stmt2) = evalStmt path items1 onFalse
-  put (path, items2, stmt)
+  path <- getPath
+  let (_, stmt1) = evalStmt path onTrue
+      (_, stmt2) = evalStmt path onFalse
   statement $ Branch cond stmt1 stmt2
 
 -- | Conditional if without the else.
@@ -337,14 +330,9 @@ if_ cond stmt = ifelse cond stmt $ return ()
 
 -- | Verify a program.
 verify :: Stmt () -> IO (Maybe Bool)
-verify program = V.verify stmt
-  where
-  (_, _, stmt) = evalStmt [] [] program
+verify program = V.verify $ snd $ evalStmt [] program
 
 -- | Generate C code.
 code :: Name -> Stmt () -> IO ()
-code name program = C.code name stmt scope
-  where
-  (_, items, stmt) = evalStmt [name ++ "Variables"] [] program
-  scope = Scope (name ++ "Variables") items
+code name program = C.code name $ snd $ evalStmt [name ++ "Variables"] program
 
