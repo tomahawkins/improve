@@ -317,16 +317,16 @@ assume a b = do
   statement $ Assume (path ++ [a]) b
 
 -- | Conditional if-else.
-ifelse :: E Bool -> Stmt () -> Stmt () -> Stmt ()
-ifelse cond onTrue onFalse = do
+ifelse :: Name -> E Bool -> Stmt () -> Stmt () -> Stmt ()
+ifelse name cond onTrue onFalse = do
   path <- getPath
   let (_, stmt1) = evalStmt path onTrue
       (_, stmt2) = evalStmt path onFalse
-  statement $ Branch cond stmt1 stmt2
+  statement $ Branch (path ++ [name]) cond stmt1 stmt2
 
 -- | Conditional if without the else.
-if_ :: E Bool -> Stmt () -> Stmt()
-if_ cond stmt = ifelse cond stmt $ return ()
+if_ :: Name -> E Bool -> Stmt () -> Stmt()
+if_ name cond stmt = ifelse name cond stmt $ return ()
 
 -- | Verify a program.
 verify :: Stmt () -> IO (Maybe Bool)

@@ -78,7 +78,7 @@ data Statement
   = AssignBool  (V Bool ) (E Bool )
   | AssignInt   (V Int  ) (E Int  )
   | AssignFloat (V Float) (E Float)
-  | Branch      (E Bool) Statement Statement
+  | Branch      [Name] (E Bool) Statement Statement
   | Sequence    Statement Statement
   | Assert      [Name] (E Bool)
   | Assume      [Name] (E Bool)

@@ -35,11 +35,11 @@ codeStmt a = case a of
   AssignBool  a b -> varName a ++ " = " ++ codeExpr b ++ ";\n"
   AssignInt   a b -> varName a ++ " = " ++ codeExpr b ++ ";\n"
   AssignFloat a b -> varName a ++ " = " ++ codeExpr b ++ ";\n"
-  Branch a b Null -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\n"
-  Branch a b c    -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\nelse {\n" ++ indent (codeStmt c) ++ "}\n"
+  Branch path a b Null -> "// if_ "    ++ intercalate "." path ++ "\nif (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\n"
+  Branch path a b c    -> "// ifelse " ++ intercalate "." path ++ "\nif (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\nelse {\n" ++ indent (codeStmt c) ++ "}\n"
   Sequence a b -> codeStmt a ++ codeStmt b
-  Assert names a -> "// assert " ++ intercalate "." names ++ "\nassert(" ++ codeExpr a ++ ");\n"
-  Assume names a -> "// assume " ++ intercalate "." names ++ "\nassert(" ++ codeExpr a ++ ");\n"
+  Assert path a -> "// assert " ++ intercalate "." path ++ "\nassert(" ++ codeExpr a ++ ");\n"
+  Assume path a -> "// assume " ++ intercalate "." path ++ "\nassert(" ++ codeExpr a ++ ");\n"
   Null -> ""
 
 codeExpr :: E a -> String
@@ -91,7 +91,7 @@ varsInStmt a = case a of
   AssignBool  a b -> nub $ varInfo a : varsInExpr b
   AssignInt   a b -> nub $ varInfo a : varsInExpr b
   AssignFloat a b -> nub $ varInfo a : varsInExpr b
-  Branch a b c    -> nub $ varsInExpr a ++ varsInStmt b ++ varsInStmt c
+  Branch _ a b c  -> nub $ varsInExpr a ++ varsInStmt b ++ varsInStmt c
   Sequence a b    -> nub $ varsInStmt a ++ varsInStmt b
   Assert _ a      -> varsInExpr a
   Assume _ a      -> varsInExpr a
