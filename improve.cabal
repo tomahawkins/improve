@@ -1,12 +1,15 @@
 name:    improve
-version: 0.0.3
+version: 0.0.4
 
 category: Language
 
-synopsis: An imperative, verifiable programming language for embedded applications.
+synopsis: An imperative, verifiable programming language for high assurance applications.
 
 description:
-    TODO
+  ImProve is an imperative DSL intended for high assurance, embedded applications.
+  ImProve uses infinite state, unbounded model checking to verify programs adhere
+  to specifications, which are written in the form of assertion statements.
+  Yices (required) is the backend SMT solver.
 
 author:     Tom Hawkins <tomahawkins@gmail.com>
 maintainer: Tom Hawkins <tomahawkins@gmail.com>
