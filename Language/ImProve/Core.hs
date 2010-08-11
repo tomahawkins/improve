@@ -2,38 +2,53 @@ module Language.ImProve.Core
   ( E (..)
   , V (..)
   , Name
+  , Path
+  , PathName (..)
   , AllE (..)
   , NumE
+  , Const (..)
   , Statement (..)
+  , VarInfo
+  , varInfo
+  , stmtVars
+  , exprVars
   ) where
 
+import Data.List
 import Data.Ratio
 
 type Name = String
 
-data V a = V Bool [Name] a
+type Path = [Name]
+
+data V a = V Bool [Name] a deriving Eq
+
+class    PathName a         where pathName :: a -> String
+instance PathName Path      where pathName = intercalate "."
+instance PathName (V a)     where pathName (V _ path _) = pathName path
+instance PathName VarInfo   where pathName (_, path, _) = pathName path
+instance PathName Statement where
+  pathName a = case a of
+    Branch p _ _ _ -> pathName p
+    Assert p _     -> pathName p
+    Assume p _     -> pathName p
+    _ -> undefined
 
 class AllE a where
-  showConst :: a -> String
-  showType  :: a -> String
-  zero      :: (Name -> a -> m (V a)) -> a
+  zero   :: (Name -> a -> m (V a)) -> a
+  const' :: a -> Const
 
 instance AllE Bool where
-  showConst a = case a of
-    True  -> "1"
-    False -> "0"
-  showType _ = "int"
   zero = const False
+  const' = Bool
 
 instance AllE Int where
-  showConst = show
-  showType _ = "int"
   zero = const 0
+  const' = Int
   
 instance AllE Float where
-  showConst = show
-  showType _ = "float"
   zero = const 0
+  const' = Float
 
 class    AllE a => NumE a
 instance NumE Int
@@ -78,9 +93,52 @@ data Statement
   = AssignBool  (V Bool ) (E Bool )
   | AssignInt   (V Int  ) (E Int  )
   | AssignFloat (V Float) (E Float)
-  | Branch      [Name] (E Bool) Statement Statement
+  | Branch      Path (E Bool) Statement Statement
   | Sequence    Statement Statement
-  | Assert      [Name] (E Bool)
-  | Assume      [Name] (E Bool)
+  | Assert      Path (E Bool)
+  | Assume      Path (E Bool)
   | Null
+
+data Const
+  = Bool  Bool
+  | Int   Int
+  | Float Float
+  deriving Eq
+
+type VarInfo = (Bool, Path, Const)
+
+varInfo :: AllE a => V a -> VarInfo
+varInfo (V input path init) = (input, path, const' init)
+
+-- Information about all of a program's variables.
+stmtVars :: Statement -> [VarInfo]
+stmtVars a = case a of
+  AssignBool  a b -> nub $ varInfo a : exprVars b
+  AssignInt   a b -> nub $ varInfo a : exprVars b
+  AssignFloat a b -> nub $ varInfo a : exprVars b
+  Branch _ a b c  -> nub $ exprVars a ++ stmtVars b ++ stmtVars c
+  Sequence a b    -> nub $ stmtVars a ++ stmtVars b
+  Assert _ a      -> exprVars a
+  Assume _ a      -> exprVars a
+  Null            -> []
+
+-- Information about all of an expressions's variables.
+exprVars :: E a -> [VarInfo]
+exprVars a = case a of
+  Ref a     -> [varInfo a]
+  Const _   -> []
+  Add a b   -> exprVars a ++ exprVars b
+  Sub a b   -> exprVars a ++ exprVars b
+  Mul a _   -> exprVars a
+  Div a _   -> exprVars a
+  Mod a _   -> exprVars a
+  Not a     -> exprVars a
+  And a b   -> exprVars a ++ exprVars b
+  Or  a b   -> exprVars a ++ exprVars b
+  Eq  a b   -> exprVars a ++ exprVars b
+  Lt  a b   -> exprVars a ++ exprVars b
+  Gt  a b   -> exprVars a ++ exprVars b
+  Le  a b   -> exprVars a ++ exprVars b
+  Ge  a b   -> exprVars a ++ exprVars b
+  Mux a b c -> exprVars a ++ exprVars b ++ exprVars c
 

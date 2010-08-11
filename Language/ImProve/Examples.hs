@@ -2,7 +2,9 @@
 module Language.ImProve.Examples
   ( gcd'
   , gcdMain
-  , gcdBuild
+  , buildGCD
+  , counter
+  , verifyCounter
   ) where
 
 import Language.ImProve
@@ -52,6 +54,25 @@ gcdMain = do
 
 
 -- | Build the gcdMain code (i.e. gcd.c, gcd.h).
-gcdBuild :: IO ()
-gcdBuild = code "gcd" gcdMain
+buildGCD :: IO ()
+buildGCD = code "gcd" gcdMain
+
+
+
+-- | A rolling counter verification example.
+counter :: Stmt ()
+counter = do
+  -- The counter variable.
+  counter <- int "counter" 0
+
+  -- Specification.
+  assert "GreaterThanOrEqualTo0" $ ref counter >=. 0
+  assert "LessThan10"            $ ref counter <.  10
+
+  -- Implementation.
+  ifelse "ResetCounter" (ref counter ==. 10) (counter <== 0) (incr counter)
+
+-- Verify the 'counter' example.
+verifyCounter :: IO ()
+verifyCounter = verify "yices" 20 counter
 

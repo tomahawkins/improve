@@ -1,5 +1,5 @@
 name:    improve
-version: 0.0.2
+version: 0.0.3
 
 category: Language
 
@@ -21,8 +21,9 @@ cabal-version: >= 1.6
 
 library
     build-depends:
-        base       >= 4.2     && < 5,
-        mtl        >= 1.1.0.1 && < 1.2
+        base  >= 4.2     && < 5,
+        mtl   >= 1.1.0.1 && < 1.2,
+        yices >= 0.0.0.7 && < 0.0.1
 
     exposed-modules:
         Language.ImProve
@@ -32,7 +33,7 @@ library
         Language.ImProve.Tree
         Language.ImProve.Verify
 
-    extensions: GADTs, FlexibleInstances
+    extensions: GADTs, FlexibleInstances, TypeSynonymInstances
 
     ghc-options: -W
 

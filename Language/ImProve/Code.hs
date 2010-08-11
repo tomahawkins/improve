@@ -22,43 +22,37 @@ code name stmt = do
     ++ codeVariables False scope ++ "\n"
     ++ "void " ++ name ++ "(void);\n\n"
   where
-  [scope] = tree (\ (path, _, _, _) -> path) $ varsInStmt stmt
-
-varName :: V a -> String
-varName a = intercalate "." names
-  where
-  names = case a of
-    V _ names _ -> names
+  [scope] = tree (\ (_, path, _) -> path) $ stmtVars stmt
 
 codeStmt :: Statement -> String
 codeStmt a = case a of
-  AssignBool  a b -> varName a ++ " = " ++ codeExpr b ++ ";\n"
-  AssignInt   a b -> varName a ++ " = " ++ codeExpr b ++ ";\n"
-  AssignFloat a b -> varName a ++ " = " ++ codeExpr b ++ ";\n"
-  Branch path a b Null -> "// if_ "    ++ intercalate "." path ++ "\nif (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\n"
-  Branch path a b c    -> "// ifelse " ++ intercalate "." path ++ "\nif (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\nelse {\n" ++ indent (codeStmt c) ++ "}\n"
+  AssignBool  a b -> pathName a ++ " = " ++ codeExpr b ++ ";\n"
+  AssignInt   a b -> pathName a ++ " = " ++ codeExpr b ++ ";\n"
+  AssignFloat a b -> pathName a ++ " = " ++ codeExpr b ++ ";\n"
+  Branch path a b Null -> "// if_ "    ++ pathName path ++ "\nif (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\n"
+  Branch path a b c    -> "// ifelse " ++ pathName path ++ "\nif (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\nelse {\n" ++ indent (codeStmt c) ++ "}\n"
   Sequence a b -> codeStmt a ++ codeStmt b
-  Assert path a -> "// assert " ++ intercalate "." path ++ "\nassert(" ++ codeExpr a ++ ");\n"
-  Assume path a -> "// assume " ++ intercalate "." path ++ "\nassert(" ++ codeExpr a ++ ");\n"
+  Assert path a -> "// assert " ++ pathName path ++ "\nassert(" ++ codeExpr a ++ ");\n"
+  Assume path a -> "// assume " ++ pathName path ++ "\nassert(" ++ codeExpr a ++ ");\n"
   Null -> ""
 
 codeExpr :: E a -> String
 codeExpr a = case a of
-  Ref a -> varName a
-  Const a -> showConst a
-  Add a b -> group [codeExpr a, "+", codeExpr b]
-  Sub a b -> group [codeExpr a, "-", codeExpr b]
-  Mul a b -> group [codeExpr a, "*", showConst b]
-  Div a b -> group [codeExpr a, "/", showConst b]
-  Mod a b -> group [codeExpr a, "%", showConst b]
-  Not a   -> group ["!", codeExpr a]
-  And a b -> group [codeExpr a, "&&",  codeExpr b]
-  Or  a b -> group [codeExpr a, "||",  codeExpr b]
-  Eq  a b -> group [codeExpr a, "==",  codeExpr b]
-  Lt  a b -> group [codeExpr a, "<",   codeExpr b]
-  Gt  a b -> group [codeExpr a, ">",   codeExpr b]
-  Le  a b -> group [codeExpr a, "<=",  codeExpr b]
-  Ge  a b -> group [codeExpr a, ">=",  codeExpr b]
+  Ref a     -> pathName a
+  Const a   -> showConst $ const' a
+  Add a b   -> group [codeExpr a, "+", codeExpr b]
+  Sub a b   -> group [codeExpr a, "-", codeExpr b]
+  Mul a b   -> group [codeExpr a, "*", showConst (const' b)]
+  Div a b   -> group [codeExpr a, "/", showConst (const' b)]
+  Mod a b   -> group [codeExpr a, "%", showConst (const' b)]
+  Not a     -> group ["!", codeExpr a]
+  And a b   -> group [codeExpr a, "&&",  codeExpr b]
+  Or  a b   -> group [codeExpr a, "||",  codeExpr b]
+  Eq  a b   -> group [codeExpr a, "==",  codeExpr b]
+  Lt  a b   -> group [codeExpr a, "<",   codeExpr b]
+  Gt  a b   -> group [codeExpr a, ">",   codeExpr b]
+  Le  a b   -> group [codeExpr a, "<=",  codeExpr b]
+  Ge  a b   -> group [codeExpr a, ">=",  codeExpr b]
   Mux a b c -> group [codeExpr a, "?", codeExpr b, ":", codeExpr c] 
   where
   group :: [String] -> String
@@ -72,47 +66,27 @@ indent' a = case lines a of
   [] -> []
   (a:b) -> a ++ "\n" ++ indent (unlines b)
 
-codeVariables :: Bool -> (Tree Name ([Name], Bool, String, String)) -> String
+codeVariables :: Bool -> (Tree Name (Bool, Path, Const)) -> String
 codeVariables define a = (if define then "" else "extern ") ++ init (init (f1 a)) ++ (if define then " =\n  " ++ f2 a else "") ++ ";\n"
   where
   f1 a = case a of
     T.Branch name items -> "struct {  // " ++ name ++ "\n" ++ indent (concatMap f1 items) ++ "} " ++ name ++ ";\n"
-    Leaf name (_, input, typ, _) -> printf "%-5s %-25s;%s\n" typ name (if input then "  // input" else "")
+    Leaf name (input, _, init) -> printf "%-5s %-25s;%s\n" (showConstType init) name (if input then "  // input" else "")
 
   f2 a = case a of
     T.Branch name items -> indent' $ "{ " ++ (intercalate ", " $ map f2 items) ++ "}  // " ++ name ++ "\n"
-    Leaf name (_, _, _, init) -> printf "%-15s  // %s\n" init name
+    Leaf name (_, _, init) -> printf "%-15s  // %s\n" (showConst init) name
 
-varInfo :: AllE a => V a -> ([Name], Bool, String, String)
-varInfo (V input path a) = (path, input, showType a, showConst a)
+showConst :: Const -> String
+showConst a = case a of
+  Bool  True  -> "1"
+  Bool  False -> "0"
+  Int   a     -> show a
+  Float a     -> show a
 
-varsInStmt :: Statement -> [([Name], Bool, String, String)] -- (path, isInput, type, init)
-varsInStmt a = case a of
-  AssignBool  a b -> nub $ varInfo a : varsInExpr b
-  AssignInt   a b -> nub $ varInfo a : varsInExpr b
-  AssignFloat a b -> nub $ varInfo a : varsInExpr b
-  Branch _ a b c  -> nub $ varsInExpr a ++ varsInStmt b ++ varsInStmt c
-  Sequence a b    -> nub $ varsInStmt a ++ varsInStmt b
-  Assert _ a      -> varsInExpr a
-  Assume _ a      -> varsInExpr a
-  Null            -> []
-
-varsInExpr :: E a -> [([Name], Bool, String, String)] -- (path, isInput, type, init)
-varsInExpr a = case a of
-  Ref a     -> [varInfo a]
-  Const _   -> []
-  Add a b   -> varsInExpr a ++ varsInExpr b
-  Sub a b   -> varsInExpr a ++ varsInExpr b
-  Mul a _   -> varsInExpr a
-  Div a _   -> varsInExpr a
-  Mod a _   -> varsInExpr a
-  Not a     -> varsInExpr a
-  And a b   -> varsInExpr a ++ varsInExpr b
-  Or  a b   -> varsInExpr a ++ varsInExpr b
-  Eq  a b   -> varsInExpr a ++ varsInExpr b
-  Lt  a b   -> varsInExpr a ++ varsInExpr b
-  Gt  a b   -> varsInExpr a ++ varsInExpr b
-  Le  a b   -> varsInExpr a ++ varsInExpr b
-  Ge  a b   -> varsInExpr a ++ varsInExpr b
-  Mux a b c -> varsInExpr a ++ varsInExpr b ++ varsInExpr c
+showConstType :: Const -> String
+showConstType a = case a of
+  Bool  _ -> "int"
+  Int   _ -> "int"
+  Float _ -> "float"
 

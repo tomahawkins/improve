@@ -329,8 +329,10 @@ if_ :: Name -> E Bool -> Stmt () -> Stmt()
 if_ name cond stmt = ifelse name cond stmt $ return ()
 
 -- | Verify a program.
-verify :: Stmt () -> IO (Maybe Bool)
-verify program = V.verify $ snd $ evalStmt [] program
+--
+-- ^ verify pathToYices maxK program
+verify :: FilePath -> Int -> Stmt () -> IO ()
+verify yices maxK program = V.verify yices maxK $ snd $ evalStmt [] program
 
 -- | Generate C code.
 code :: Name -> Stmt () -> IO ()
