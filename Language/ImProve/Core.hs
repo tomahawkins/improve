@@ -97,6 +97,7 @@ data Statement
   | Sequence    Statement Statement
   | Assert      Path (E Bool)
   | Assume      Path (E Bool)
+  | Annotate    Name Statement
   | Null
 
 data Const
@@ -120,6 +121,7 @@ stmtVars a = case a of
   Sequence a b    -> nub $ stmtVars a ++ stmtVars b
   Assert _ a      -> exprVars a
   Assume _ a      -> exprVars a
+  Annotate _ a    -> stmtVars a
   Null            -> []
 
 -- Information about all of an expressions's variables.

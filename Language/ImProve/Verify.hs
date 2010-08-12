@@ -26,6 +26,7 @@ trimAssertions' a = case a of
                ++ [ Sequence (removeAssertions a) b | b <- trimAssertions' b ]
   Branch path cond a b -> [ Branch path cond a (removeAssertions b) | a <- trimAssertions' a ]
                        ++ [ Branch path cond (removeAssertions a) b | b <- trimAssertions' b ]
+  Annotate name a -> [ Annotate name a | a <- trimAssertions a ]
   a -> [a]
 
 -- | Remove all assertions.
@@ -34,6 +35,7 @@ removeAssertions a = case a of
   Assert _ _ -> Null
   Sequence a b -> Sequence (removeAssertions a) (removeAssertions b)
   Branch path cond a b -> Branch path cond (removeAssertions a) (removeAssertions b)
+  Annotate name a -> Annotate name $ removeAssertions a
   a -> a
 
 -- | Paths of all assertions.
@@ -42,6 +44,7 @@ assertions a = case a of
   Assert path _  -> [path]
   Sequence a b   -> assertions a ++ assertions b
   Branch _ _ a b -> assertions a ++ assertions b
+  Annotate _ a   -> assertions a
   _ -> []
 
 -- | Trim all unneeded stuff from a program.
@@ -140,6 +143,12 @@ evalStmt enabled a = case a of
     evalStmt (AND [enabled, NOT a]) onFalse
     env2 <- get
     put env2 { trace = Branch' (pathName path) b (reverse $ trace env1) (reverse $ trace env2) : trace env0 }
+  Annotate name a -> do
+    env0 <- get
+    put env0 { trace = [] }
+    evalStmt enabled a
+    env1 <- get
+    put env1 { trace = Annotate' name (reverse $ trace env1) : trace env0 }
   where
   assign :: AllE a => V a -> E a -> Y ()
   assign a b = do
@@ -241,12 +250,13 @@ initEnv program = execStateT (sequence_ [ addVar' a >>= addTrace . Init' (pathNa
   }
 
 data Trace
-  = Init'   Name Var
-  | Cycle'  Int
-  | Input'  Name Var
-  | Assign' Name Var
-  | Assert' Name Var
-  | Branch' Name Var [Trace] [Trace] 
+  = Init'     Name Var
+  | Cycle'    Int
+  | Input'    Name Var
+  | Assign'   Name Var
+  | Assert'   Name Var
+  | Branch'   Name Var [Trace] [Trace] 
+  | Annotate' Name [Trace]
 
 addVar' :: VarInfo -> Y String
 addVar' v = do
@@ -298,8 +308,8 @@ writeTrace name table' = do
   f a = case a of
     Init' path var -> case lookup var table of
       Nothing -> ""
-      Just value -> "initialize " ++ path ++ " := " ++ value ++ "\n"
-    Cycle' n -> "cycle " ++ show n ++ "\n"
+      Just value -> "initialize " ++ path ++ " <== " ++ value ++ "\n"
+    Cycle' n -> "\nstep " ++ show n ++ "\n"
     Input' path var -> case lookup var table of
       Nothing -> ""
       Just value -> "input " ++ path ++ " <== " ++ value ++ "\n"
@@ -311,10 +321,11 @@ writeTrace name table' = do
       Just "false" -> "assertion FAILED: " ++ path ++ "\n"
       _ -> ""
     Branch' path cond onTrue onFalse -> case lookup cond table of
-      Just "true"  -> "branch true: "  ++ path ++ "\n" ++ indent (concatMap f onTrue)
-      Just "false" -> "branch false: " ++ path ++ "\n" ++ indent (concatMap f onFalse)
+      Just "true"  -> "ifelse " ++ path ++ " true\n"  ++ indent (concatMap f onTrue)
+      Just "false" -> "ifelse " ++ path ++ " false\n" ++ indent (concatMap f onFalse)
       _ -> ""
+    Annotate' name traces -> "annotate " ++ name ++ "\n" ++ indent (concatMap f traces)
 
 indent :: String -> String
-indent = unlines . map ("  " ++) . lines
+indent = unlines . map ("    " ++) . lines
 

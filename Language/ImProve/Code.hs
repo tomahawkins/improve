@@ -34,6 +34,7 @@ codeStmt a = case a of
   Sequence a b -> codeStmt a ++ codeStmt b
   Assert path a -> "// assert " ++ pathName path ++ "\nassert(" ++ codeExpr a ++ ");\n"
   Assume path a -> "// assume " ++ pathName path ++ "\nassert(" ++ codeExpr a ++ ");\n"
+  Annotate name a -> "// annotate " ++ name ++ "\n" ++ indent (codeStmt a)
   Null -> ""
 
 codeExpr :: E a -> String
@@ -59,7 +60,7 @@ codeExpr a = case a of
   group a = "(" ++ intercalate " " a ++ ")"
 
 indent :: String -> String
-indent = unlines . map ("  " ++) . lines
+indent = unlines . map ("    " ++) . lines
 
 indent' :: String -> String
 indent' a = case lines a of

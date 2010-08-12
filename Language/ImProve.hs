@@ -45,10 +45,11 @@ module Language.ImProve
   , mux
   -- ** Lookups
   , linear
-  -- * Hierarchical Scope
-  , scope
   -- * Statements
   , Stmt
+  -- ** Hierarchical Scope and Annotations
+  , scope
+  , annotate
   -- ** Variable Declarations
   , bool
   , bool'
@@ -215,14 +216,30 @@ mux = Mux
 
 -- | Creates a hierarchical scope.
 scope :: Name -> Stmt a -> Stmt a
-scope name (Stmt f0) = Stmt f1
-  where
-  f1 (path, statement) = (a, (path, statement1))
-    where
-    (a, (_, statement1)) = f0 (path ++ [name], statement)
+scope name stmt = do
+  (path0, stmt0) <- get
+  put (path0 ++ [name], stmt0)
+  a <- stmt
+  (_, stmt1) <- get
+  put (path0, stmt1)
+  return a
+
+-- | Add an annotation to a statement.  Useful for requirement trace tags.
+annotate :: Name -> Stmt a -> Stmt a
+annotate name stmt = do
+  (path0, stmt0) <- get
+  put (path0, Null)
+  a <- stmt
+  (_, stmt1) <- get
+  put (path0, stmt0)
+  statement $ Annotate name stmt1
+  return a
   
 get :: Stmt ([Name], Statement)
 get = Stmt $ \ a -> (a, a)
+
+put :: ([Name], Statement) -> Stmt ()
+put s = Stmt $ \ _ -> ((), s)
 
 getPath :: Stmt [Name]
 getPath = do
