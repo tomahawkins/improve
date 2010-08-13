@@ -49,7 +49,7 @@ module Language.ImProve
   , Stmt
   -- ** Hierarchical Scope and Annotations
   , scope
-  , annotate
+  , label
   -- ** Variable Declarations
   , bool
   , bool'
@@ -214,7 +214,7 @@ ref = Ref
 mux :: AllE a => E Bool -> E a -> E a -> E a
 mux = Mux
 
--- | Creates a hierarchical scope.
+-- | Creates a hierarchical scope for variable names.
 scope :: Name -> Stmt a -> Stmt a
 scope name stmt = do
   (path0, stmt0) <- get
@@ -224,15 +224,15 @@ scope name stmt = do
   put (path0, stmt1)
   return a
 
--- | Add an annotation to a statement.  Useful for requirement trace tags.
-annotate :: Name -> Stmt a -> Stmt a
-annotate name stmt = do
+-- | Labels a statement.  Useful for requirement trace tags or other annotations.
+label :: Name -> Stmt a -> Stmt a
+label name stmt = do
   (path0, stmt0) <- get
   put (path0, Null)
   a <- stmt
   (_, stmt1) <- get
   put (path0, stmt0)
-  statement $ Annotate name stmt1
+  statement $ Label name stmt1
   return a
   
 get :: Stmt ([Name], Statement)
@@ -322,28 +322,24 @@ instance Assign Int   where a <== b = statement $ AssignInt   a b
 instance Assign Float where a <== b = statement $ AssignFloat a b
 
 -- | Assert that a condition is true.
-assert :: Name -> E Bool -> Stmt ()
-assert a b = do
-  path <- getPath
-  statement $ Assert (path ++ [a]) b
+assert :: E Bool -> Stmt ()
+assert = statement . Assert
 
 -- | Declare an assumption condition is true.
-assume :: Name -> E Bool -> Stmt ()
-assume a b = do
-  path <- getPath
-  statement $ Assume (path ++ [a]) b
+assume :: E Bool -> Stmt ()
+assume = statement . Assume
 
 -- | Conditional if-else.
-ifelse :: Name -> E Bool -> Stmt () -> Stmt () -> Stmt ()
-ifelse name cond onTrue onFalse = do
+ifelse :: E Bool -> Stmt () -> Stmt () -> Stmt ()
+ifelse cond onTrue onFalse = do
   path <- getPath
   let (_, stmt1) = evalStmt path onTrue
       (_, stmt2) = evalStmt path onFalse
-  statement $ Branch (path ++ [name]) cond stmt1 stmt2
+  statement $ Branch cond stmt1 stmt2
 
 -- | Conditional if without the else.
-if_ :: Name -> E Bool -> Stmt () -> Stmt()
-if_ name cond stmt = ifelse name cond stmt $ return ()
+if_ :: E Bool -> Stmt () -> Stmt()
+if_ cond stmt = ifelse cond stmt $ return ()
 
 -- | Verify a program.
 --

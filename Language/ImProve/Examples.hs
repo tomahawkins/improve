@@ -25,18 +25,18 @@ gcd' a b = do
   b1 <- int "b1" 0  -- Working copy of 'b'.
 
   -- A new input to process.
-  if_ "startNew" (a /=. ref a0 ||. b /=. ref b0) $ do
+  label "startNew" $ if_ (a /=. ref a0 ||. b /=. ref b0) $ do
     a0 <== a
     b0 <== b
     a1 <== a
     b1 <== b
 
   -- Reduce a1.
-  if_ "reduceA" (ref a1 >. ref b1) $ do
+  label "reduceA" $ if_ (ref a1 >. ref b1) $ do
     a1 <== ref a1 - ref b1
 
   -- Reduce b1.
-  if_ "reduceB" (ref b1 >. ref a1) $ do
+  label "reduceB" $ if_ (ref b1 >. ref a1) $ do
     b1 <== ref b1 - ref a1
 
   -- Done if a1 == b1.
@@ -72,11 +72,11 @@ counter = do
   counter <- int "counter" 0
 
   -- Specification.
-  assert "GreaterThanOrEqualTo0" $ ref counter >=. 0
-  assert "LessThan10"            $ ref counter <.  10
+  label "GreaterThanOrEqualTo0" $ assert $ ref counter >=. 0
+  label "LessThan10"            $ assert $ ref counter <.  10
 
   -- Implementation.
-  ifelse "ResetCounter" (ref counter ==. 10) (counter <== 0) (counter <== ref counter + 1)
+  ifelse (ref counter ==. 10) (counter <== 0) (counter <== ref counter + 1)
 
   -- Alternatives to try.
   --ifelse "ResetCounter" (ref counter >=. 9) (counter <== 0) (counter <== ref counter + 1)
@@ -93,25 +93,29 @@ arbiterSpec :: (E Bool, E Bool, E Bool) -> (E Bool, E Bool, E Bool) -> Stmt ()
 arbiterSpec (requestA, requestB, requestC) (grantA, grantB, grantC) = do
 
   -- Mutual exclusion.  At most, only one requester granted at a time.
-  assert "OneHot" $      grantA &&. not_ grantB &&. not_ grantC
-                ||. not_ grantA &&.      grantB &&. not_ grantC
-                ||. not_ grantA &&. not_ grantB &&.      grantC
-                ||. not_ grantA &&. not_ grantB &&. not_ grantC
+  label "OneHot" $ assert $      grantA &&. not_ grantB &&. not_ grantC
+                        ||. not_ grantA &&.      grantB &&. not_ grantC
+                        ||. not_ grantA &&. not_ grantB &&.      grantC
+                        ||. not_ grantA &&. not_ grantB &&. not_ grantC
   
   -- No grants without requests.
-  assert "NotRequestedA" $ imply (not_ requestA) (not_ grantA)
-  assert "NotRequestedB" $ imply (not_ requestB) (not_ grantB)
-  assert "NotRequestedC" $ imply (not_ requestC) (not_ grantC)
+  --label "NotRequestedA" $ assert $ imply (not_ requestA) (not_ grantA)
+  --label "NotRequestedB" $ assert $ imply (not_ requestB) (not_ grantB)
+  --label "NotRequestedC" $ assert $ imply (not_ requestC) (not_ grantC)
+  label "test" $ label "test2" $ do
+    assert $ imply (not_ requestA) (not_ grantA)
+    assert $ imply (not_ requestB) (not_ grantB)
+    assert $ imply (not_ requestC) (not_ grantC)
 
   -- Grants to single requests.
-  assert "OnlyRequestA" $ imply (     requestA &&. not_ requestB &&. not_ requestC) grantA
-  assert "OnlyRequestB" $ imply (not_ requestA &&.      requestB &&. not_ requestC) grantB
-  assert "OnlyRequestC" $ imply (not_ requestA &&. not_ requestB &&.      requestC) grantC
+  label "OnlyRequestA" $ assert $ imply (     requestA &&. not_ requestB &&. not_ requestC) grantA
+  label "OnlyRequestB" $ assert $ imply (not_ requestA &&.      requestB &&. not_ requestC) grantB
+  label "OnlyRequestC" $ assert $ imply (not_ requestA &&. not_ requestB &&.      requestC) grantC
 
   -- Priority.
-  assert "Highest" $ imply requestA grantA
-  assert "Medium"  $ imply (not_ requestA &&. requestB) grantB
-  assert "Lowest"  $ imply (not_ requestA &&. not_ requestB &&. requestC) grantC
+  label "Highest" $ assert $ imply requestA grantA
+  label "Medium"  $ assert $ imply (not_ requestA &&. requestB) grantB
+  label "Lowest"  $ assert $ imply (not_ requestA &&. not_ requestB &&. requestC) grantC
 
 -- | An arbiter implementation.
 arbiter1 :: (E Bool, E Bool, E Bool) -> Stmt (E Bool, E Bool, E Bool)
@@ -128,9 +132,9 @@ arbiter2 (requestA, requestB, requestC) = do
   grantB <- bool "grantB" False
   grantC <- bool "grantC" False
 
-  if_ "GrantA" (requestA)                                     (grantA <== true)
-  if_ "GrantB" (not_ requestA &&. requestB)                   (grantB <== true)
-  if_ "GrantC" (not_ requestA &&. not_ requestB &&. requestC) (grantC <== true)
+  label "GrantA" $ if_ (requestA)                                     (grantA <== true)
+  label "GrantB" $ if_ (not_ requestA &&. requestB)                   (grantB <== true)
+  label "GrantC" $ if_ (not_ requestA &&. not_ requestB &&. requestC) (grantC <== true)
 
   return (ref grantA, ref grantB, ref grantC)
 

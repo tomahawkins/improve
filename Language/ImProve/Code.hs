@@ -29,12 +29,12 @@ codeStmt a = case a of
   AssignBool  a b -> pathName a ++ " = " ++ codeExpr b ++ ";\n"
   AssignInt   a b -> pathName a ++ " = " ++ codeExpr b ++ ";\n"
   AssignFloat a b -> pathName a ++ " = " ++ codeExpr b ++ ";\n"
-  Branch path a b Null -> "// if_ "    ++ pathName path ++ "\nif (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\n"
-  Branch path a b c    -> "// ifelse " ++ pathName path ++ "\nif (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\nelse {\n" ++ indent (codeStmt c) ++ "}\n"
+  Branch a b Null -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\n"
+  Branch a b c    -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\nelse {\n" ++ indent (codeStmt c) ++ "}\n"
   Sequence a b -> codeStmt a ++ codeStmt b
-  Assert path a -> "// assert " ++ pathName path ++ "\nassert(" ++ codeExpr a ++ ");\n"
-  Assume path a -> "// assume " ++ pathName path ++ "\nassert(" ++ codeExpr a ++ ");\n"
-  Annotate name a -> "// annotate " ++ name ++ "\n" ++ indent (codeStmt a)
+  Assert a -> "assert(" ++ codeExpr a ++ ");\n"
+  Assume a -> "assert(" ++ codeExpr a ++ ");\n"
+  Label  name a -> "// " ++ name ++ "\n" ++ indent (codeStmt a)
   Null -> ""
 
 codeExpr :: E a -> String

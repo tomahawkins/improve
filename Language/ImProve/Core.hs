@@ -27,12 +27,6 @@ class    PathName a         where pathName :: a -> String
 instance PathName Path      where pathName = intercalate "."
 instance PathName (V a)     where pathName (V _ path _) = pathName path
 instance PathName VarInfo   where pathName (_, path, _) = pathName path
-instance PathName Statement where
-  pathName a = case a of
-    Branch p _ _ _ -> pathName p
-    Assert p _     -> pathName p
-    Assume p _     -> pathName p
-    _ -> undefined
 
 class AllE a where
   zero   :: (Name -> a -> m (V a)) -> a
@@ -93,11 +87,11 @@ data Statement
   = AssignBool  (V Bool ) (E Bool )
   | AssignInt   (V Int  ) (E Int  )
   | AssignFloat (V Float) (E Float)
-  | Branch      Path (E Bool) Statement Statement
+  | Branch      (E Bool) Statement Statement
   | Sequence    Statement Statement
-  | Assert      Path (E Bool)
-  | Assume      Path (E Bool)
-  | Annotate    Name Statement
+  | Assert      (E Bool)
+  | Assume      (E Bool)
+  | Label       Name Statement
   | Null
 
 data Const
@@ -117,11 +111,11 @@ stmtVars a = case a of
   AssignBool  a b -> nub $ varInfo a : exprVars b
   AssignInt   a b -> nub $ varInfo a : exprVars b
   AssignFloat a b -> nub $ varInfo a : exprVars b
-  Branch _ a b c  -> nub $ exprVars a ++ stmtVars b ++ stmtVars c
+  Branch a b c    -> nub $ exprVars a ++ stmtVars b ++ stmtVars c
   Sequence a b    -> nub $ stmtVars a ++ stmtVars b
-  Assert _ a      -> exprVars a
-  Assume _ a      -> exprVars a
-  Annotate _ a    -> stmtVars a
+  Assert a        -> exprVars a
+  Assume a        -> exprVars a
+  Label  _ a      -> stmtVars a
   Null            -> []
 
 -- Information about all of an expressions's variables.
