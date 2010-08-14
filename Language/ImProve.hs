@@ -1,3 +1,128 @@
+{- |
+ImProve is an imperative programming language for high assurance applications.
+
+ImProve uses infinite state, unbounded model checking to verify programs
+adhere to specifications, which are written in the form of assertion statements.
+If it is unable to verify an assertion, ImProve will emit a counter example
+that shows a precise program trace that exercises the assertion violation.
+
+The following compares the syntax of C and ImProve:
+
+/Variable Declarations/
+
+@
+float a = 0.0;            a <- 'float' \"a\" 0
+bool b = true;            b <- 'bool' \"b\" true
+int c = d + e + 3;        c <- 'int'' \"c\" (d + e + 3)
+@
+
+/Variable Assignments/
+
+@
+a = 1;                    a '<==' 1
+@
+
+/Conditional Statements/
+
+@
+if (condition) {          'if_' condition $ do 
+    a();                      a
+    b();                      b
+    c();                      c
+}
+
+if (condition {           'ifelse' condition
+    a();                      (do a
+    b();                          b
+    c();                          c)
+}                             (do d
+else {                            e 
+    d();                          f)
+    e();
+    f();
+}                                 
+@
+
+/Assertion Statements/
+
+@
+assert(condition);        'assert' condition
+@
+
+/Statement Labels/
+
+@
+hello: {                  'label' \"hello\" $ do
+    a();                      a
+    b();                      b
+}
+@
+
+/Expressions/
+
+@
+/Constant Literals/
+
+true                      'true'
+false                     'false'
+0                         0
+100                       100
+1.0                       1     -- float
+3.14                      3.14
+
+/Variable Reference/
+
+a                         'ref' a
+
+/Logical Expressions/
+
+! a                       'not_' a
+a && b                    a '&&.' b
+a || b                    a '||.' b
+
+/Comparison Expressions/
+
+a == b                    a '==.' b
+a != b                    a '/=.' b
+a < b                     a '<.' b
+a > b                     a '>.' b
+a <= b                    a '<=.' b
+a >= b                    a '>=.' b
+
+/Arithmetic Expressions/
+
+a + b                     a '+' b
+a * b                     a '*.' b
+a \/ b                     a '/.' b     -- float
+a \/ b                     a '`div_`' b -- int
+a % b                     a '`mod_`' b
+abs(a)                    'abs' a
+min(a, b)                 'min_' a b
+max(a, b)                 'max_' a b
+
+/Conditional Expression/
+
+a ? b : c                 'mux' a b c
+@
+
+/Function Definitions and Function Calls/
+(All ImProve functions are Haskell functions that are inlined at compile time.)
+
+@
+int add(int a, int b) {                             add :: E Int -> E Int -> E Int
+  return a + b;                                     add a b = a + b
+}
+
+three = add(1, 2);                                  three <== add 1 2
+
+void incrCounter(int *counter, int amount) {        incrCounter :: V Int -> E Int -> Stmt ()
+  *counter = *counter + amount;                     incrCounter counter amount = counter <== ref counter + amount
+}
+
+incrCounter(&counter, 22);                          incrCounter counter 22
+@
+
+-}
 module Language.ImProve
   (
   -- * Types
@@ -11,7 +136,6 @@ module Language.ImProve
   , true
   , false
   , constant
-  , zero
   -- ** Variable Reference
   , ref
   -- ** Logical Operations
@@ -59,7 +183,7 @@ module Language.ImProve
   , float'
   , input
   -- ** Variable Assignment
-  , (<==)
+  , Assign (..)
   -- ** Conditional Execution
   , ifelse
   , if_
@@ -204,7 +328,7 @@ linear (x1, y1) (x2, y2) a = a *. slope + constant inter
   slope = (y2 - y1) / (x2 - x1)
   inter = y1 - slope * x1
 
--- | References a variable.
+-- | References a variable to be used in an expression ('E').
 ref :: AllE a => V a -> E a
 ref = Ref
 
@@ -224,7 +348,8 @@ scope name stmt = do
   put (path0, stmt1)
   return a
 
--- | Labels a statement.  Useful for requirement trace tags or other annotations.
+-- | Labels a statement.  Labels are used in counter examples to trace the program execution.
+--   And assertion names, and hence counter example file names, are produce from labels.
 label :: Name -> Stmt a -> Stmt a
 label name stmt = do
   (path0, stmt0) <- get
@@ -316,7 +441,8 @@ statement a = Stmt $ \ (path, statement) -> ((), (path, Sequence statement a))
 evalStmt :: [Name] -> Stmt () -> ([Name], Statement)
 evalStmt path (Stmt f) = snd $ f (path, Null)
 
-class    Assign a     where (<==) :: V a -> E a -> Stmt ()
+class Assign a where
+  (<==) :: V a -> E a -> Stmt ()
 instance Assign Bool  where a <== b = statement $ AssignBool  a b
 instance Assign Int   where a <== b = statement $ AssignInt   a b
 instance Assign Float where a <== b = statement $ AssignFloat a b

@@ -87,7 +87,7 @@ assertions = assertions []
 
 -- | Trim all unneeded stuff from a program.
 trimProgram :: Statement -> Statement
-trimProgram program = program
+trimProgram program = trim program
   where
   vars = fixPoint []
   fixPoint :: [VarInfo] -> [VarInfo]

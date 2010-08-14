@@ -21,6 +21,7 @@ type Name = String
 
 type Path = [Name]
 
+-- | A mutable variable.
 data V a = V Bool [Name] a deriving Eq
 
 class    PathName a         where pathName :: a -> String
@@ -48,6 +49,7 @@ class    AllE a => NumE a
 instance NumE Int
 instance NumE Float
 
+-- | A logical, arithmetic, comparative, or conditional expression.
 data E a where
   Ref   :: AllE a => V a -> E a
   Const :: AllE a => a -> E a
