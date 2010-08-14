@@ -21,16 +21,16 @@ verify yices maxK program' = do
 
 -- | Set of statements containing only one assertion.
 trimAssertions :: Statement -> [Statement]
-trimAssertions program = [ a | a <- trimAssertions' program, length (assertions a) == 1 ]
-
-trimAssertions' :: Statement -> [Statement]
-trimAssertions' a = case a of
-  Sequence a b -> [ Sequence a (removeAssertions b) | a <- trimAssertions' a ]
-               ++ [ Sequence (removeAssertions a) b | b <- trimAssertions' b ]
-  Branch cond a b -> [ Branch cond a (removeAssertions b) | a <- trimAssertions' a ]
-                  ++ [ Branch cond (removeAssertions a) b | b <- trimAssertions' b ]
-  Label name a -> [ Label name a | a <- trimAssertions' a ]
-  a -> [a]
+trimAssertions program = [ a | a <- trimAssertions program, length (assertions a) == 1 ]
+  where
+  trimAssertions :: Statement -> [Statement]
+  trimAssertions a = case a of
+    Sequence a b -> [ Sequence a (removeAssertions b) | a <- trimAssertions a ]
+                 ++ [ Sequence (removeAssertions a) b | b <- trimAssertions b ]
+    Branch cond a b -> [ Branch cond a (removeAssertions b) | a <- trimAssertions a ]
+                    ++ [ Branch cond (removeAssertions a) b | b <- trimAssertions b ]
+    Label name a -> [ Label name a | a <- trimAssertions a ]
+    a -> [a]
 
 -- | Remove all assertions.
 removeAssertions :: Statement -> Statement
@@ -87,13 +87,30 @@ assertions = assertions []
 
 -- | Trim all unneeded stuff from a program.
 trimProgram :: Statement -> Statement
-trimProgram program = program
+trimProgram program = trim program
   where
   vars = fixPoint []
   fixPoint :: [VarInfo] -> [VarInfo]
   fixPoint a = if sort (nub a) == sort (nub b) then sort (nub a) else fixPoint b
     where
     b = requiredVars program a
+  trim :: Statement -> Statement
+  trim a = case a of
+    AssignBool  b _ -> if elem (varInfo b) vars then a else Null
+    AssignInt   b _ -> if elem (varInfo b) vars then a else Null
+    AssignFloat b _ -> if elem (varInfo b) vars then a else Null
+    Branch a b c    -> case (trim b, trim c) of
+      (Null, Null) -> Null
+      (b, c)       -> Branch a b c
+    Sequence a b    -> case (trim a, trim b) of
+      (Null, a) -> a
+      (a, Null) -> a
+      (a, b)    -> Sequence a b
+    Assert a -> if any (flip elem vars) (exprVars a) then Assert a else Null
+    Assume a -> if any (flip elem vars) (exprVars a) then Assume a else Null
+    Label name a -> case trim a of
+      Null -> Null
+      a    -> Label name a
 
 requiredVars :: Statement -> [VarInfo] -> [VarInfo]
 requiredVars a required = case a of
