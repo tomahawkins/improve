@@ -1,6 +1,7 @@
 module Language.ImProve.Verify (verify) where
 
 import Control.Monad.State
+import Data.List
 import Math.SMT.Yices.Pipe
 import Math.SMT.Yices.Syntax
 import System.IO
@@ -11,9 +12,10 @@ import Language.ImProve.Core
 -- | Verify a program with k-induction.
 verify :: FilePath -> Int -> Statement -> IO ()
 verify _ maxK _ | maxK < 1 = error "max k can not be less than 1"
-verify yices maxK program = do
+verify yices maxK program' = do
   mapM_ (verifyProgram yices format maxK) $ trimAssertions program
   where
+  program = labelAssertions program'
   format = "verifying %-" ++ show (maximum [ length $ pathName path | path <- assertions program ]) ++ "s    "
 
 
@@ -39,12 +41,11 @@ removeAssertions a = case a of
   Label name a -> Label name $ removeAssertions a
   a -> a
 
-{-
--- | Ensures all assertions are labed, though not uniquely.
+-- | Ensure all assertions are uniquely labed.
 labelAssertions :: Statement -> Statement
-labelAssertions program = evalState (f program) 1
+labelAssertions program = evalState (f program) ([], [], 1)
   where
-  f :: Statement -> State Int Statement
+  f :: Statement -> State (Path, [Path], Int) Statement
   f a = case a of
     Branch a b c -> do
       b <- f b
@@ -55,14 +56,22 @@ labelAssertions program = evalState (f program) 1
       b <- f b
       return $ Sequence a b
     Assert a -> do
-      n <- get
-      put $ n + 1
-      return $ Label (show n) $ Assert a
+      (path, paths, n) <- get
+      if elem path paths
+        then do
+          put (path, paths, n + 1)
+          f $ Label (show n) $ Assert a
+        else do
+          put (path, path : paths, n)
+          return $ Assert a
     Label name a -> do
+      (path, paths, n) <- get
+      put (path ++ [name], paths, n)
       a <- f a
+      (_, paths, n) <- get
+      put (path, paths, n)
       return $ Label name a
     a -> return a
--}
 
 -- | Paths of all assertions.
 assertions :: Statement -> [Path]
@@ -78,7 +87,31 @@ assertions = assertions []
 
 -- | Trim all unneeded stuff from a program.
 trimProgram :: Statement -> Statement
-trimProgram = id --XXX
+trimProgram program = program
+  where
+  vars = fixPoint []
+  fixPoint :: [VarInfo] -> [VarInfo]
+  fixPoint a = if sort (nub a) == sort (nub b) then sort (nub a) else fixPoint b
+    where
+    b = requiredVars program a
+
+requiredVars :: Statement -> [VarInfo] -> [VarInfo]
+requiredVars a required = case a of
+  AssignBool  a b -> if elem (varInfo a) required then nub $ varInfo a : exprVars b ++ required else required
+  AssignInt   a b -> if elem (varInfo a) required then nub $ varInfo a : exprVars b ++ required else required
+  AssignFloat a b -> if elem (varInfo a) required then nub $ varInfo a : exprVars b ++ required else required
+  Branch a b c    -> if (not $ null $ reqB \\ required) || (not $ null $ reqC \\ required)
+    then nub $ exprVars a ++ requiredVars b (requiredVars c required)
+    else required
+    where
+    reqB = requiredVars b required
+    reqC = requiredVars c required
+  Sequence a b    -> requiredVars a (requiredVars b required)
+  Assert a        -> nub $ exprVars a ++ required
+  Assume a        -> if any (flip elem required) (exprVars a) then nub $ exprVars a ++ required else required
+  Label  _ a      -> requiredVars a required
+  Null            -> required
+
 
 -- | Verify a trimmed program.
 verifyProgram :: FilePath -> String -> Int -> Statement -> IO ()

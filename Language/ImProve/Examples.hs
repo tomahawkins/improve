@@ -99,13 +99,9 @@ arbiterSpec (requestA, requestB, requestC) (grantA, grantB, grantC) = do
                         ||. not_ grantA &&. not_ grantB &&. not_ grantC
   
   -- No grants without requests.
-  --label "NotRequestedA" $ assert $ imply (not_ requestA) (not_ grantA)
-  --label "NotRequestedB" $ assert $ imply (not_ requestB) (not_ grantB)
-  --label "NotRequestedC" $ assert $ imply (not_ requestC) (not_ grantC)
-  label "test" $ label "test2" $ do
-    assert $ imply (not_ requestA) (not_ grantA)
-    assert $ imply (not_ requestB) (not_ grantB)
-    assert $ imply (not_ requestC) (not_ grantC)
+  label "NotRequestedA" $ assert $ imply (not_ requestA) (not_ grantA)
+  label "NotRequestedB" $ assert $ imply (not_ requestB) (not_ grantB)
+  label "NotRequestedC" $ assert $ imply (not_ requestC) (not_ grantC)
 
   -- Grants to single requests.
   label "OnlyRequestA" $ assert $ imply (     requestA &&. not_ requestB &&. not_ requestC) grantA
