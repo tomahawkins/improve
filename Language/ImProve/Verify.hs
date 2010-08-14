@@ -87,7 +87,7 @@ assertions = assertions []
 
 -- | Trim all unneeded stuff from a program.
 trimProgram :: Statement -> Statement
-trimProgram program = trim program
+trimProgram program = program
   where
   vars = fixPoint []
   fixPoint :: [VarInfo] -> [VarInfo]
@@ -96,6 +96,7 @@ trimProgram program = trim program
     b = requiredVars program a
   trim :: Statement -> Statement
   trim a = case a of
+    Null -> Null
     AssignBool  b _ -> if elem (varInfo b) vars then a else Null
     AssignInt   b _ -> if elem (varInfo b) vars then a else Null
     AssignFloat b _ -> if elem (varInfo b) vars then a else Null
