@@ -52,7 +52,7 @@ assert(condition);        'assert' condition
 /Statement Labels/
 
 @
-hello: {                  'label' \"hello\" $ do
+hello: {                  \"hello\" '-:' do
     a();                      a
     b();                      b
 }
@@ -146,7 +146,7 @@ module Language.ImProve
   , or_
   , any_
   , all_
-  , imply
+  , (-->)
   -- ** Equality and Comparison
   , (==.)
   , (/=.)
@@ -171,9 +171,9 @@ module Language.ImProve
   , linear
   -- * Statements
   , Stmt
-  -- ** Hierarchical Scope and Annotations
-  , scope
-  , label
+  -- ** Statement Labeling and Hierarchical Scope
+  , (-:)
+  , (!)
   -- ** Variable Declarations
   , bool
   , bool'
@@ -209,7 +209,8 @@ infixl 7 *., /., `div_`, `mod_`
 infix  4 ==., /=., <., <=., >., >=.
 infixl 3 &&.
 infixl 2 ||.
-infixr 1 <==
+infixr 1 -->
+infixr 0 <==, -:, !
 
 -- | True term.
 true :: E Bool
@@ -252,8 +253,8 @@ any_ :: (a -> E Bool) -> [a] -> E Bool
 any_ f a = or_ $ map f a
 
 -- Logical implication (if a then b).
-imply :: E Bool -> E Bool -> E Bool 
-imply a b = not_ a ||. b
+(-->) :: E Bool -> E Bool -> E Bool 
+a --> b = not_ a ||. b
 
 -- | Equal.
 (==.) :: AllE a => E a -> E a -> E Bool
@@ -338,20 +339,11 @@ ref = Ref
 mux :: AllE a => E Bool -> E a -> E a -> E a
 mux = Mux
 
--- | Creates a hierarchical scope for variable names.
-scope :: Name -> Stmt a -> Stmt a
-scope name stmt = do
-  (path0, stmt0) <- get
-  put (path0 ++ [name], stmt0)
-  a <- stmt
-  (_, stmt1) <- get
-  put (path0, stmt1)
-  return a
-
--- | Labels a statement.  Labels are used in counter examples to trace the program execution.
---   And assertion names, and hence counter example file names, are produce from labels.
-label :: Name -> Stmt a -> Stmt a
-label name stmt = do
+-- | Labels a statement.
+--   Labels are used in counter examples to trace the program execution.
+--   And assertion names, and hence counter example trace file names, are produce from labels.
+(-:) :: Name -> Stmt a -> Stmt a
+name -: stmt = do
   (path0, stmt0) <- get
   put (path0, Null)
   a <- stmt
@@ -359,7 +351,18 @@ label name stmt = do
   put (path0, stmt0)
   statement $ Label name stmt1
   return a
-  
+
+-- | Creates a new hierarcical scope for variable names.
+(!) :: Name -> Stmt a -> Stmt a
+name ! stmt = do
+  (path0, stmt0) <- get
+  put (path0 ++ [name], stmt0)
+  a <- stmt
+  (_, stmt1) <- get
+  put (path0, stmt1)
+  return a
+
+
 get :: Stmt ([Name], Statement)
 get = Stmt $ \ a -> (a, a)
 
@@ -452,8 +455,10 @@ assert :: E Bool -> Stmt ()
 assert = statement . Assert
 
 -- | Declare an assumption condition is true.
+--   Assumptions expressions must contain variables directly or indirectly related
+--   to the assertion under verification, otherwise they will be ignored.
 assume :: E Bool -> Stmt ()
-assume = statement . Assume
+assume a = statement $ Assume a
 
 -- | Conditional if-else.
 ifelse :: E Bool -> Stmt () -> Stmt () -> Stmt ()

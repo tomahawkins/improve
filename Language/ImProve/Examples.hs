@@ -25,18 +25,18 @@ gcd' a b = do
   b1 <- int "b1" 0  -- Working copy of 'b'.
 
   -- A new input to process.
-  label "startNew" $ if_ (a /=. ref a0 ||. b /=. ref b0) $ do
+  "startNew" -: if_ (a /=. ref a0 ||. b /=. ref b0) $ do
     a0 <== a
     b0 <== b
     a1 <== a
     b1 <== b
 
   -- Reduce a1.
-  label "reduceA" $ if_ (ref a1 >. ref b1) $ do
+  "reduceA" -: if_ (ref a1 >. ref b1) $ do
     a1 <== ref a1 - ref b1
 
   -- Reduce b1.
-  label "reduceB" $ if_ (ref b1 >. ref a1) $ do
+  "reduceB" -: if_ (ref b1 >. ref a1) $ do
     b1 <== ref b1 - ref a1
 
   -- Done if a1 == b1.
@@ -52,7 +52,7 @@ gcdMain = do
   result <- int  "result" 0      -- Result of GCD.
 
   -- Call gcd' in its own scope.  (Scopes prevent variable name collisions.)
-  (done', result') <- scope "gcd" $ gcd' a b
+  (done', result') <- "gcd" ! gcd' a b
 
   -- Bind the results to the output variables.
   done   <== done'
@@ -72,8 +72,8 @@ counter = do
   counter <- int "counter" 0
 
   -- Specification.
-  label "GreaterThanOrEqualTo0" $ assert $ ref counter >=. 0
-  label "LessThan10"            $ assert $ ref counter <.  10
+  "GreaterThanOrEqualTo0" -: assert $ ref counter >=. 0
+  "LessThan10"            -: assert $ ref counter <.  10
 
   -- Implementation.
   ifelse (ref counter ==. 10) (counter <== 0) (counter <== ref counter + 1)
@@ -93,25 +93,25 @@ arbiterSpec :: (E Bool, E Bool, E Bool) -> (E Bool, E Bool, E Bool) -> Stmt ()
 arbiterSpec (requestA, requestB, requestC) (grantA, grantB, grantC) = do
 
   -- Mutual exclusion.  At most, only one requester granted at a time.
-  label "OneHot" $ assert $      grantA &&. not_ grantB &&. not_ grantC
-                        ||. not_ grantA &&.      grantB &&. not_ grantC
-                        ||. not_ grantA &&. not_ grantB &&.      grantC
-                        ||. not_ grantA &&. not_ grantB &&. not_ grantC
+  "OneHot" -: assert $      grantA &&. not_ grantB &&. not_ grantC
+                   ||. not_ grantA &&.      grantB &&. not_ grantC
+                   ||. not_ grantA &&. not_ grantB &&.      grantC
+                   ||. not_ grantA &&. not_ grantB &&. not_ grantC
   
   -- No grants without requests.
-  label "NotRequestedA" $ assert $ imply (not_ requestA) (not_ grantA)
-  label "NotRequestedB" $ assert $ imply (not_ requestB) (not_ grantB)
-  label "NotRequestedC" $ assert $ imply (not_ requestC) (not_ grantC)
+  "NotRequestedA" -: assert $ not_ requestA --> not_ grantA
+  "NotRequestedB" -: assert $ not_ requestB --> not_ grantB
+  "NotRequestedC" -: assert $ not_ requestC --> not_ grantC
 
   -- Grants to single requests.
-  label "OnlyRequestA" $ assert $ imply (     requestA &&. not_ requestB &&. not_ requestC) grantA
-  label "OnlyRequestB" $ assert $ imply (not_ requestA &&.      requestB &&. not_ requestC) grantB
-  label "OnlyRequestC" $ assert $ imply (not_ requestA &&. not_ requestB &&.      requestC) grantC
+  "OnlyRequestA" -: assert $ (     requestA &&. not_ requestB &&. not_ requestC) --> grantA
+  "OnlyRequestB" -: assert $ (not_ requestA &&.      requestB &&. not_ requestC) --> grantB
+  "OnlyRequestC" -: assert $ (not_ requestA &&. not_ requestB &&.      requestC) --> grantC
 
   -- Priority.
-  label "Highest" $ assert $ imply requestA grantA
-  label "Medium"  $ assert $ imply (not_ requestA &&. requestB) grantB
-  label "Lowest"  $ assert $ imply (not_ requestA &&. not_ requestB &&. requestC) grantC
+  "Highest" -: assert $ requestA --> grantA
+  "Medium"  -: assert $ (not_ requestA &&. requestB) --> grantB
+  "Lowest"  -: assert $ (not_ requestA &&. not_ requestB &&. requestC) --> grantC
 
 -- | An arbiter implementation.
 arbiter1 :: (E Bool, E Bool, E Bool) -> Stmt (E Bool, E Bool, E Bool)
@@ -128,9 +128,9 @@ arbiter2 (requestA, requestB, requestC) = do
   grantB <- bool "grantB" False
   grantC <- bool "grantC" False
 
-  label "GrantA" $ if_ (requestA)                                     (grantA <== true)
-  label "GrantB" $ if_ (not_ requestA &&. requestB)                   (grantB <== true)
-  label "GrantC" $ if_ (not_ requestA &&. not_ requestB &&. requestC) (grantC <== true)
+  "GrantA" -: if_ (requestA)                                     (grantA <== true)
+  "GrantB" -: if_ (not_ requestA &&. requestB)                   (grantB <== true)
+  "GrantC" -: if_ (not_ requestA &&. not_ requestB &&. requestC) (grantC <== true)
 
   return (ref grantA, ref grantB, ref grantC)
 
@@ -144,7 +144,7 @@ arbiter3 (requestA, requestB, requestC) = do
 
 -- | Binding an arbiter implemenation to the arbiter specification.
 arbiter :: Name -> ((E Bool, E Bool, E Bool) -> Stmt (E Bool, E Bool, E Bool)) -> Stmt ()
-arbiter name implementation = scope name $ do
+arbiter name implementation = name -: do
   -- Create input variables.
   requestA <- input bool "requestA"
   requestB <- input bool "requestB"
@@ -152,7 +152,7 @@ arbiter name implementation = scope name $ do
   let requests = (requestA, requestB, requestC)
 
   -- Instantiate implementation.
-  grants@(grantA, grantB, grantC) <- scope "impl" $ implementation requests
+  grants@(grantA, grantB, grantC) <- "impl" -: implementation requests
 
   -- Bind specification.
   arbiterSpec requests grants

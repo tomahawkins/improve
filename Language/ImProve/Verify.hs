@@ -107,7 +107,7 @@ trimProgram program = trim program
       (Null, a) -> a
       (a, Null) -> a
       (a, b)    -> Sequence a b
-    Assert a -> if any (flip elem vars) (exprVars a) then Assert a else Null
+    Assert a -> Assert a
     Assume a -> if any (flip elem vars) (exprVars a) then Assume a else Null
     Label name a -> case trim a of
       Null -> Null
@@ -404,7 +404,7 @@ writeTrace name table' = do
       Just "true"  -> "ifelse true:\n"  ++ indent (concatMap f onTrue)
       Just "false" -> "ifelse false:\n" ++ indent (concatMap f onFalse)
       _ -> ""
-    Label' name traces -> name ++ ":\n" ++ indent (concatMap f traces)
+    Label' name traces -> name ++ " -:\n" ++ indent (concatMap f traces)
 
 indent :: String -> String
 indent = unlines . map ("    " ++) . lines
