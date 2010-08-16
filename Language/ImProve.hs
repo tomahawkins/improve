@@ -12,7 +12,7 @@ The following compares the syntax of C and ImProve:
 
 @
 float a = 0.0;            a <- 'float' \"a\" 0
-bool b = true;            b <- 'bool' \"b\" true
+bool b = true;            b <- 'bool' \"b\" True
 int c = d + e + 3;        c <- 'int'' \"c\" (d + e + 3)
 @
 
@@ -52,7 +52,7 @@ assert(condition);        'assert' condition
 /Statement Labels/
 
 @
-hello: {                  \"hello\" '-:' do
+label: {                  \"label\" '|-' do
     a();                      a
     b();                      b
 }
@@ -94,8 +94,8 @@ a >= b                    a '>=.' b
 a + b                     a '+' b
 a * b                     a '*.' b
 a \/ b                     a '/.' b     -- float
-a \/ b                     a '`div_`' b -- int
-a % b                     a '`mod_`' b
+a \/ b                     'div_' a b   -- int
+a % b                     'mod_' a b
 abs(a)                    'abs' a
 min(a, b)                 'min_' a b
 max(a, b)                 'max_' a b
@@ -106,7 +106,7 @@ a ? b : c                 'mux' a b c
 @
 
 /Function Definitions and Function Calls/
-(All ImProve functions are Haskell functions that are inlined at compile time.)
+(All ImProve functions are Haskell functions, which are inlined at code generation.)
 
 @
 int add(int a, int b) {                             add :: E Int -> E Int -> E Int
@@ -123,6 +123,12 @@ incrCounter(&counter, 22);                          incrCounter counter 22
 @
 
 -}
+
+-- hello: \{                  hello '+++' do
+--     a();                      a
+--     b();                      b
+--
+
 module Language.ImProve
   (
   -- * Types
@@ -172,8 +178,8 @@ module Language.ImProve
   -- * Statements
   , Stmt
   -- ** Statement Labeling and Hierarchical Scope
-  , (-:)
-  , (!)
+  , (|=)
+  , (|-)
   -- ** Variable Declarations
   , bool
   , bool'
@@ -210,7 +216,7 @@ infix  4 ==., /=., <., <=., >., >=.
 infixl 3 &&.
 infixl 2 ||.
 infixr 1 -->
-infixr 0 <==, -:, !
+infixr 0 <==, |-, |=
 
 -- | True term.
 true :: E Bool
@@ -252,7 +258,7 @@ all_ f a = and_ $ map f a
 any_ :: (a -> E Bool) -> [a] -> E Bool
 any_ f a = or_ $ map f a
 
--- Logical implication (if a then b).
+-- | Logical implication.
 (-->) :: E Bool -> E Bool -> E Bool 
 a --> b = not_ a ||. b
 
@@ -342,8 +348,8 @@ mux = Mux
 -- | Labels a statement.
 --   Labels are used in counter examples to trace the program execution.
 --   And assertion names, and hence counter example trace file names, are produce from labels.
-(-:) :: Name -> Stmt a -> Stmt a
-name -: stmt = do
+(|-) :: Name -> Stmt a -> Stmt a
+name |- stmt = do
   (path0, stmt0) <- get
   put (path0, Null)
   a <- stmt
@@ -353,8 +359,8 @@ name -: stmt = do
   return a
 
 -- | Creates a new hierarcical scope for variable names.
-(!) :: Name -> Stmt a -> Stmt a
-name ! stmt = do
+(|=) :: Name -> Stmt a -> Stmt a
+name |= stmt = do
   (path0, stmt0) <- get
   put (path0 ++ [name], stmt0)
   a <- stmt
