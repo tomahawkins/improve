@@ -40,7 +40,18 @@ else {                            e
     d();                          f)
     e();
     f();
-}                                 
+}
+
+switch (a) {              'case_' a
+    case 1:                   [ (a ==. 1, do1)
+        do1();                , (a ==. 2, do2)
+        break;                , (true   , do3)
+    case 2:                   ]
+        do2();
+        break;
+    default:
+        do3();
+}
 @
 
 /Assertion Statements/
@@ -177,9 +188,10 @@ module Language.ImProve
   , linear
   -- * Statements
   , Stmt
-  -- ** Statement Labeling and Hierarchical Scope
+  -- ** Variable Hierarchical Scope and Statement Labeling 
   , (|=)
   , (|-)
+  , (|=-)
   -- ** Variable Declarations
   , bool
   , bool'
@@ -193,6 +205,7 @@ module Language.ImProve
   -- ** Conditional Execution
   , ifelse
   , if_
+  , case_
   -- ** Incrementing and decrementing.
   , incr
   , decr
@@ -216,7 +229,7 @@ infix  4 ==., /=., <., <=., >., >=.
 infixl 3 &&.
 infixl 2 ||.
 infixr 1 -->
-infixr 0 <==, |-, |=
+infixr 0 <==, |=, |-, |=-
 
 -- | True term.
 true :: E Bool
@@ -358,7 +371,7 @@ name |- stmt = do
   statement $ Label name stmt1
   return a
 
--- | Creates a new hierarcical scope for variable names.
+-- | Creates a new hierarchical scope for variable names.
 (|=) :: Name -> Stmt a -> Stmt a
 name |= stmt = do
   (path0, stmt0) <- get
@@ -368,6 +381,9 @@ name |= stmt = do
   put (path0, stmt1)
   return a
 
+-- | Creates a new hierarchical scope and labels a statement with the same name.
+(|=-) :: Name -> Stmt a -> Stmt a
+name |=- stmt = name |= name |- stmt
 
 get :: Stmt ([Name], Statement)
 get = Stmt $ \ a -> (a, a)
@@ -477,6 +493,11 @@ ifelse cond onTrue onFalse = do
 -- | Conditional if without the else.
 if_ :: E Bool -> Stmt () -> Stmt()
 if_ cond stmt = ifelse cond stmt $ return ()
+
+-- | Condition case statement.
+case_ :: [(E Bool, Stmt ())] -> Stmt ()
+case_ [] = return ()
+case_ ((cond, action) : b) = ifelse cond action $ case_ b
 
 -- | Verify a program.
 --

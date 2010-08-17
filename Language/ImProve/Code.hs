@@ -22,7 +22,10 @@ code name stmt = do
     ++ codeVariables False scope ++ "\n"
     ++ "void " ++ name ++ "(void);\n\n"
   where
-  [scope] = tree (\ (_, path, _) -> path) $ stmtVars stmt
+  scope = case tree (\ (_, path, _) -> path) $ stmtVars stmt of
+    [] -> error "program contains no usefull statements"
+    [a] -> a
+    _ -> error "unexpected: muliple scope items"
 
 codeStmt :: Statement -> String
 codeStmt a = case a of
@@ -68,14 +71,14 @@ indent' a = case lines a of
   (a:b) -> a ++ "\n" ++ indent (unlines b)
 
 codeVariables :: Bool -> (Tree Name (Bool, Path, Const)) -> String
-codeVariables define a = (if define then "" else "extern ") ++ init (init (f1 a)) ++ (if define then " =\n  " ++ f2 a else "") ++ ";\n"
+codeVariables define a = (if define then "" else "extern ") ++ init (init (f1 a)) ++ (if define then " =\n    " ++ f2 a else "") ++ ";\n"
   where
   f1 a = case a of
     T.Branch name items -> "struct {  // " ++ name ++ "\n" ++ indent (concatMap f1 items) ++ "} " ++ name ++ ";\n"
     Leaf name (input, _, init) -> printf "%-5s %-25s;%s\n" (showConstType init) name (if input then "  // input" else "")
 
   f2 a = case a of
-    T.Branch name items -> indent' $ "{ " ++ (intercalate ", " $ map f2 items) ++ "}  // " ++ name ++ "\n"
+    T.Branch name items -> indent' $ "{   " ++ (intercalate ",   " $ map f2 items) ++ "}  // " ++ name ++ "\n"
     Leaf name (_, _, init) -> printf "%-15s  // %s\n" (showConst init) name
 
 showConst :: Const -> String

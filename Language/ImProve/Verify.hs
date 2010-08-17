@@ -404,7 +404,7 @@ writeTrace name table' = do
       Just "true"  -> "ifelse true:\n"  ++ indent (concatMap f onTrue)
       Just "false" -> "ifelse false:\n" ++ indent (concatMap f onFalse)
       _ -> ""
-    Label' name traces -> name ++ " -:\n" ++ indent (concatMap f traces)
+    Label' name traces -> name ++ " |-\n" ++ indent (concatMap f traces)
 
 indent :: String -> String
 indent = unlines . map ("    " ++) . lines
