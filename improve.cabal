@@ -42,5 +42,5 @@ library
 
 source-repository head
     type:     git
-    location: git://github.com/tomahawkins/atom.git
+    location: git://github.com/tomahawkins/improve.git
 
