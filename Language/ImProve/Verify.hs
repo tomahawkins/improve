@@ -118,18 +118,26 @@ requiredVars a required = case a of
   AssignBool  a b -> if elem (varInfo a) required then nub $ varInfo a : exprVars b ++ required else required
   AssignInt   a b -> if elem (varInfo a) required then nub $ varInfo a : exprVars b ++ required else required
   AssignFloat a b -> if elem (varInfo a) required then nub $ varInfo a : exprVars b ++ required else required
-  Branch a b c    -> if (not $ null $ reqB \\ required) || (not $ null $ reqC \\ required)
+  Branch a b c    -> if any (flip elem $ modifiedVars b ++ modifiedVars c) required
     then nub $ exprVars a ++ requiredVars b (requiredVars c required)
     else required
-    where
-    reqB = requiredVars b required
-    reqC = requiredVars c required
   Sequence a b    -> requiredVars a (requiredVars b required)
   Assert a        -> nub $ exprVars a ++ required
   Assume a        -> if any (flip elem required) (exprVars a) then nub $ exprVars a ++ required else required
   Label  _ a      -> requiredVars a required
   Null            -> required
 
+modifiedVars :: Statement -> [VarInfo]
+modifiedVars a = case a of
+  AssignBool  a b -> [varInfo a]
+  AssignInt   a b -> [varInfo a]
+  AssignFloat a b -> [varInfo a]
+  Branch _ b c    -> modifiedVars b ++ modifiedVars c
+  Sequence a b    -> modifiedVars a ++ modifiedVars b
+  Assert _        -> []
+  Assume _        -> []
+  Label  _ a      -> modifiedVars a
+  Null            -> []
 
 -- | Verify a trimmed program.
 verifyProgram :: FilePath -> String -> Int -> Statement -> IO ()
