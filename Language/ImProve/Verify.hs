@@ -129,9 +129,9 @@ requiredVars a required = case a of
 
 modifiedVars :: Statement -> [VarInfo]
 modifiedVars a = case a of
-  AssignBool  a b -> [varInfo a]
-  AssignInt   a b -> [varInfo a]
-  AssignFloat a b -> [varInfo a]
+  AssignBool  a _ -> [varInfo a]
+  AssignInt   a _ -> [varInfo a]
+  AssignFloat a _ -> [varInfo a]
   Branch _ b c    -> modifiedVars b ++ modifiedVars c
   Sequence a b    -> modifiedVars a ++ modifiedVars b
   Assert _        -> []
