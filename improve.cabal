@@ -26,7 +26,6 @@ library
     build-depends:
         base      >= 4.0     && < 5,
         mtl       >= 1.1.0.1 && < 1.2,
-        tree-ctor >= 0.0.0 && < 0.1,
         yices     >= 0.0.0.7 && < 0.0.1
 
     exposed-modules:
@@ -34,6 +33,7 @@ library
         Language.ImProve.Code
         Language.ImProve.Core
         Language.ImProve.Examples
+        Language.ImProve.Tree
         Language.ImProve.Verify
 
     extensions: GADTs, FlexibleInstances, TypeSynonymInstances

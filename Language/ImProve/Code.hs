@@ -1,11 +1,11 @@
 module Language.ImProve.Code (code) where
 
 import Data.List
-import Data.TreeCtor hiding (Branch)
-import qualified Data.TreeCtor as T
 import Text.Printf
 
 import Language.ImProve.Core
+import Language.ImProve.Tree hiding (Branch)
+import qualified Language.ImProve.Tree as T
 
 -- | Generate C code.
 code :: Name -> Statement -> IO ()
