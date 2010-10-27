@@ -42,11 +42,11 @@ else {                            e
     f();
 }
 
-switch (a) {              'case_' a
-    case 1:                   [ (a ==. 1, do1)
-        do1();                , (a ==. 2, do2)
-        break;                , (true   , do3)
-    case 2:                   ]
+switch (a) {              'case_' $ do
+    case 1:                   a ==. 1 ==> do1
+        do1();                a ==. 2 ==> do2
+        break;                true    ==> do3
+    case 2:
         do2();
         break;
     default:
@@ -205,6 +205,7 @@ module Language.ImProve
   , ifelse
   , if_
   , case_
+  , (==>)
   -- ** Incrementing and decrementing.
   , incr
   , decr
@@ -228,7 +229,7 @@ infix  4 ==., /=., <., <=., >., >=.
 infixl 3 &&.
 infixl 2 ||.
 infixr 1 -->
-infixr 0 <==, -|
+infixr 0 <==, ==>, -|
 
 -- | True term.
 true :: E Bool
@@ -482,9 +483,17 @@ if_ :: E Bool -> Stmt () -> Stmt()
 if_ cond stmt = ifelse cond stmt $ return ()
 
 -- | Condition case statement.
-case_ :: [(E Bool, Stmt ())] -> Stmt ()
-case_ [] = return ()
-case_ ((cond, action) : b) = ifelse cond action $ case_ b
+case_ :: Case () -> Stmt ()
+case_ (Case f) = f $ return ()
+
+data Case a = Case (Stmt () -> Stmt ())
+instance Monad Case where
+  return _ = Case id
+  (>>=) = undefined
+  (Case f1) >> (Case f2) = Case $ f1 . f2
+
+(==>) :: E Bool -> Stmt () -> Case ()
+a ==> s = Case $ ifelse a s
 
 -- | Verify a program.
 --
