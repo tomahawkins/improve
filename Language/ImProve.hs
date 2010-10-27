@@ -63,7 +63,7 @@ assert(condition);        'assert' condition
 /Statement Labels/
 
 @
-label: {                  \"label\" '|-' do
+label: {                  \"label\" '|' do
     a();                      a
     b();                      b
 }
@@ -189,9 +189,7 @@ module Language.ImProve
   -- * Statements
   , Stmt
   -- ** Variable Hierarchical Scope and Statement Labeling 
-  , (|=)
-  , (|-)
-  , (|=-)
+  , (-|)
   -- ** Variable Declarations
   , bool
   , bool'
@@ -200,6 +198,7 @@ module Language.ImProve
   , float
   , float'
   , input
+  , global
   -- ** Variable Assignment
   , Assign (..)
   -- ** Conditional Execution
@@ -229,7 +228,7 @@ infix  4 ==., /=., <., <=., >., >=.
 infixl 3 &&.
 infixl 2 ||.
 infixr 1 -->
-infixr 0 <==, |=, |-, |=-
+infixr 0 <==, -|
 
 -- | True term.
 true :: E Bool
@@ -358,32 +357,18 @@ ref = Ref
 mux :: AllE a => E Bool -> E a -> E a -> E a
 mux = Mux
 
--- | Labels a statement.
+-- | Labels a statement and creates a variable scope.
 --   Labels are used in counter examples to trace the program execution.
 --   And assertion names, and hence counter example trace file names, are produce from labels.
-(|-) :: Name -> Stmt a -> Stmt a
-name |- stmt = do
+(-|) :: Name -> Stmt a -> Stmt a
+name -| stmt = do
   (path0, stmt0) <- get
-  put (path0, Null)
+  put (path0 ++ [name], Null)
   a <- stmt
   (_, stmt1) <- get
   put (path0, stmt0)
   statement $ Label name stmt1
   return a
-
--- | Creates a new hierarchical scope for variable names.
-(|=) :: Name -> Stmt a -> Stmt a
-name |= stmt = do
-  (path0, stmt0) <- get
-  put (path0 ++ [name], stmt0)
-  a <- stmt
-  (_, stmt1) <- get
-  put (path0, stmt1)
-  return a
-
--- | Creates a new hierarchical scope and labels a statement with the same name.
-(|=-) :: Name -> Stmt a -> Stmt a
-name |=- stmt = name |= name |- stmt
 
 get :: Stmt ([Name], Statement)
 get = Stmt $ \ a -> (a, a)
@@ -402,10 +387,12 @@ var name init = do
   return $ V False (path ++ [name]) init
 
 -- | Input variable declaration.  Input variables are initialized to 0.
-input  :: AllE a => (Name -> a -> Stmt (V a)) -> Name -> Stmt (E a)
-input f name = do
-  path <- getPath
-  return $ ref $ V True (path ++ [name]) $ zero f
+input  :: AllE a => (Name -> a -> Stmt (V a)) -> Path -> E a
+input f path = ref $ V True path $ zero f
+
+-- | Global variable declaration.
+global  :: AllE a => (Name -> a -> Stmt (V a)) -> Path -> a -> V a
+global _ path init = V False path init
 
 -- | Boolean variable declaration.
 bool :: Name -> Bool -> Stmt (V Bool)
@@ -507,5 +494,5 @@ verify yices maxK program = V.verify yices maxK $ snd $ evalStmt [] program
 
 -- | Generate C code.
 code :: Name -> Stmt () -> IO ()
-code name program = C.code name $ snd $ evalStmt [name ++ "Variables"] program
+code name program = C.code name $ snd $ evalStmt [] program
 

@@ -24,43 +24,42 @@ code name stmt = do
   where
   scope = case tree (\ (_, path, _) -> path) $ stmtVars stmt of
     [] -> error "program contains no usefull statements"
-    [a] -> a
-    _ -> error "unexpected: muliple scope items"
+    a  -> T.Branch (name ++ "_variables") a
 
-codeStmt :: Statement -> String
-codeStmt a = case a of
-  AssignBool  a b -> pathName a ++ " = " ++ codeExpr b ++ ";\n"
-  AssignInt   a b -> pathName a ++ " = " ++ codeExpr b ++ ";\n"
-  AssignFloat a b -> pathName a ++ " = " ++ codeExpr b ++ ";\n"
-  Branch a b Null -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\n"
-  Branch a b c    -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\nelse {\n" ++ indent (codeStmt c) ++ "}\n"
-  Sequence a b -> codeStmt a ++ codeStmt b
-  Assert a -> "assert(" ++ codeExpr a ++ ");\n"
-  Assume a -> "assert(" ++ codeExpr a ++ ");\n"
-  Label  name a -> "// " ++ name ++ "\n" ++ indent (codeStmt a)
-  Null -> ""
-
-codeExpr :: E a -> String
-codeExpr a = case a of
-  Ref a     -> pathName a
-  Const a   -> showConst $ const' a
-  Add a b   -> group [codeExpr a, "+", codeExpr b]
-  Sub a b   -> group [codeExpr a, "-", codeExpr b]
-  Mul a b   -> group [codeExpr a, "*", showConst (const' b)]
-  Div a b   -> group [codeExpr a, "/", showConst (const' b)]
-  Mod a b   -> group [codeExpr a, "%", showConst (const' b)]
-  Not a     -> group ["!", codeExpr a]
-  And a b   -> group [codeExpr a, "&&",  codeExpr b]
-  Or  a b   -> group [codeExpr a, "||",  codeExpr b]
-  Eq  a b   -> group [codeExpr a, "==",  codeExpr b]
-  Lt  a b   -> group [codeExpr a, "<",   codeExpr b]
-  Gt  a b   -> group [codeExpr a, ">",   codeExpr b]
-  Le  a b   -> group [codeExpr a, "<=",  codeExpr b]
-  Ge  a b   -> group [codeExpr a, ">=",  codeExpr b]
-  Mux a b c -> group [codeExpr a, "?", codeExpr b, ":", codeExpr c] 
-  where
-  group :: [String] -> String
-  group a = "(" ++ intercalate " " a ++ ")"
+  codeStmt :: Statement -> String
+  codeStmt a = case a of
+    AssignBool  a b -> name ++ "_variables." ++ pathName a ++ " = " ++ codeExpr b ++ ";\n"
+    AssignInt   a b -> name ++ "_variables." ++ pathName a ++ " = " ++ codeExpr b ++ ";\n"
+    AssignFloat a b -> name ++ "_variables." ++ pathName a ++ " = " ++ codeExpr b ++ ";\n"
+    Branch a b Null -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\n"
+    Branch a b c    -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt b) ++ "}\nelse {\n" ++ indent (codeStmt c) ++ "}\n"
+    Sequence a b -> codeStmt a ++ codeStmt b
+    Assert a -> "assert(" ++ codeExpr a ++ ");\n"
+    Assume a -> "assert(" ++ codeExpr a ++ ");\n"
+    Label  name a -> "// " ++ name ++ "\n" ++ indent (codeStmt a)
+    Null -> ""
+  
+  codeExpr :: E a -> String
+  codeExpr a = case a of
+    Ref a     -> name ++ "_variables." ++ pathName a
+    Const a   -> showConst $ const' a
+    Add a b   -> group [codeExpr a, "+", codeExpr b]
+    Sub a b   -> group [codeExpr a, "-", codeExpr b]
+    Mul a b   -> group [codeExpr a, "*", showConst (const' b)]
+    Div a b   -> group [codeExpr a, "/", showConst (const' b)]
+    Mod a b   -> group [codeExpr a, "%", showConst (const' b)]
+    Not a     -> group ["!", codeExpr a]
+    And a b   -> group [codeExpr a, "&&",  codeExpr b]
+    Or  a b   -> group [codeExpr a, "||",  codeExpr b]
+    Eq  a b   -> group [codeExpr a, "==",  codeExpr b]
+    Lt  a b   -> group [codeExpr a, "<",   codeExpr b]
+    Gt  a b   -> group [codeExpr a, ">",   codeExpr b]
+    Le  a b   -> group [codeExpr a, "<=",  codeExpr b]
+    Ge  a b   -> group [codeExpr a, ">=",  codeExpr b]
+    Mux a b c -> group [codeExpr a, "?", codeExpr b, ":", codeExpr c] 
+    where
+    group :: [String] -> String
+    group a = "(" ++ intercalate " " a ++ ")"
 
 indent :: String -> String
 indent = unlines . map ("    " ++) . lines
