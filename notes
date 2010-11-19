@@ -1,0 +1,66 @@
+
+Look for and prune redundent assertions.
+
+  assert(a);
+  b = b + 1;
+  assert(a);  // Redundent.
+
+Identify variables that will always be in sync, such as synchronization
+clocks, to constrain k-induction.
+
+  static int a = 8;
+  static int b = 7;
+  ...
+  if (a == 0)
+    a = 10;
+  else
+    a--;
+  ...
+  if (b == 0)
+    b = 10;
+  else
+    b--;
+
+  implies: a == (8 - 7 + b) % 10
+
+Identify int variables that will always be within a range,
+and constrain k-induction:
+
+    int a = 0;
+    ...
+    if (a < 10)
+      a++;
+    else
+      a = 0;
+
+    implies: a >= 0 && a < 10
+
+Identify constant-only assignment ints:
+
+  int a = 0;
+  a = 1;
+  a = 2;
+  a = 3;
+
+  implies: elem a [0, 1, 2, 3]
+
+Identify consistent constant assignment pairs:
+
+  bool a, b;
+
+  if (..)
+    a = false;
+    b = true;
+
+  if (..)
+    a = true;
+    b = false;
+
+  b = true;
+  
+  implies:  ! b --> a
+
+Analyze loops to determine worst case iteration.
+
+Need to model finite precision.
+

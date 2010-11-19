@@ -7,17 +7,21 @@ import Math.SMT.Yices.Syntax
 import System.IO
 import Text.Printf
 
+import Language.ImProve.Code
 import Language.ImProve.Core
+import Language.ImProve.Narrow
 
 -- | Verify a program with k-induction.
 verify :: FilePath -> Int -> Statement -> IO ()
 verify _ maxK _ | maxK < 1 = error "max k can not be less than 1"
 verify yices maxK program' = do
+  code "narrowing" narrowing
   mapM_ (verifyProgram yices format maxK) $ trimAssertions program
   where
-  program = labelAssertions program'
+  --XXX Not efficient.  Constraints will get added on every stage.  Only needed at the begining.
+  narrowing = narrow program'
+  program = labelAssertions $ Sequence narrowing program'
   format = "verifying %-" ++ show (maximum [ length $ pathName path | path <- assertions program ]) ++ "s    "
-
 
 -- | Set of statements containing only one assertion.
 trimAssertions :: Statement -> [Statement]

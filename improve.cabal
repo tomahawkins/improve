@@ -1,5 +1,5 @@
 name:    improve
-version: 0.1.2
+version: 0.1.3
 
 category: Language, Formal Methods, Embedded
 
@@ -33,6 +33,7 @@ library
         Language.ImProve.Code
         Language.ImProve.Core
         Language.ImProve.Examples
+        Language.ImProve.Narrow
         Language.ImProve.Tree
         Language.ImProve.Verify
 

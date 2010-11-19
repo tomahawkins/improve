@@ -1,12 +1,15 @@
-ImProve is an imperative programming language embedded in Haskell.
+ImProve is an imperative programming language embedded in Haskell for
+high assurance applications.  ImProve uses infinite state, unbounded
+model checking to verify programs adhere to specifications, which are
+written in the form of assertion statements.  Yices (required) is the
+backend SMT solver.
 
-The intent of ImProve is to provide a restrictive language that can
-be easily verified with formal methods for safety critical and other
-high assurance applications.
 
+Release Notes:
 
-Status:
+1.3.0    11/18/10
 
-Language API and C code generator complete.
-Initial k-induction model checker complete.
+- Started state space narrowing optimizations: simple code analyses
+  that reduce narrow the reachable state, thus reducing the
+  number of inconclusive results.
 
