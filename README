@@ -7,7 +7,11 @@ backend SMT solver.
 
 Release Notes:
 
-1.3.0    11/18/10
+0.1.4    ???
+
+- Better annotation for assertions.
+
+0.1.3    11/18/10
 
 - Started state space narrowing optimizations: simple code analyses
   that reduce narrow the reachable state, thus reducing the
