@@ -100,7 +100,7 @@ data Const
   = Bool  Bool
   | Int   Int
   | Float Float
-  deriving (Eq, Ord)
+  deriving (Show, Eq, Ord)
 
 type VarInfo = (Bool, Path, Const)
 

@@ -122,7 +122,7 @@ requiredVars a required = case a of
   AssignBool  a b -> if elem (varInfo a) required then nub $ varInfo a : exprVars b ++ required else required
   AssignInt   a b -> if elem (varInfo a) required then nub $ varInfo a : exprVars b ++ required else required
   AssignFloat a b -> if elem (varInfo a) required then nub $ varInfo a : exprVars b ++ required else required
-  Branch a b c    -> if any (flip elem $ modifiedVars b ++ modifiedVars c) required
+  Branch a b c    -> if any (flip elem $ modifiedVars b ++ modifiedVars c) required || (not $ null $ requiredVars b []) || (not $ null $ requiredVars c [])
     then nub $ exprVars a ++ requiredVars b (requiredVars c required)
     else required
   Sequence a b    -> requiredVars a (requiredVars b required)
@@ -153,6 +153,7 @@ verifyProgram yices format maxK program' = do
   return ()
   where
   program = trimProgram program'
+  --program = program'
   name = pathName $ head' "a1" $ assertions program
 
 head' msg a = if null a then error msg else head a
