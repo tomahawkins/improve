@@ -1,5 +1,5 @@
 name:    improve
-version: 0.1.4
+version: 0.1.5
 
 category: Language, Formal Methods, Embedded
 
@@ -25,7 +25,7 @@ cabal-version: >= 1.6
 library
     build-depends:
         base      >= 4.0     && < 5,
-        mtl       >= 1.1.0.1 && < 1.2,
+        mtl       >= 1.1.0.1 && < 2.1,
         yices     >= 0.0.0.7 && < 0.0.1
 
     exposed-modules:
