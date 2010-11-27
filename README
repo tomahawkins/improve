@@ -7,6 +7,10 @@ backend SMT solver.
 
 Release Notes:
 
+0.1.6    ???
+
+- Made Statement an instance of Show.
+
 0.1.5    11/23/10
 
 - Loosened mtl requirements (mtl < 2.1).

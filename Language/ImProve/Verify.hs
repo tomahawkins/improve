@@ -7,7 +7,7 @@ import Math.SMT.Yices.Syntax
 import System.IO
 import Text.Printf
 
-import Language.ImProve.Code
+import Language.ImProve.Code ()
 import Language.ImProve.Core
 import Language.ImProve.Narrow
 
@@ -15,7 +15,8 @@ import Language.ImProve.Narrow
 verify :: FilePath -> Int -> Statement -> IO ()
 verify _ maxK _ | maxK < 1 = error "max k can not be less than 1"
 verify yices maxK program' = do
-  code "narrowing" narrowing
+  --putStrLn "state variable narrowing ..."
+  --print narrowing
   mapM_ (verifyProgram yices format maxK) $ trimAssertions program
   where
   --XXX Not efficient.  Constraints will get added on every stage.  Only needed at the begining.
