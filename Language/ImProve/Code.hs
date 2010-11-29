@@ -38,7 +38,7 @@ codeStmt name path a = case a of
   Sequence a b -> codeStmt name path a ++ codeStmt name path b
   Assert a -> "assert((" ++ show (intercalate "." path) ++ ", " ++ codeExpr a ++ "));\n"
   Assume a -> "assert((" ++ show (intercalate "." path) ++ ", " ++ codeExpr a ++ "));\n"
-  Label  name a -> "/*" ++ name ++ "*/\n" ++ indent (codeStmt name (path ++ [name]) a)
+  Label name' a -> "/*" ++ name' ++ "*/\n" ++ indent (codeStmt name (path ++ [name']) a)
   Null -> ""
   where
 
