@@ -497,7 +497,7 @@ a ==> s = Case $ ifelse a s
 
 -- | Verify a program.
 --
--- ^ verify pathToYices maxK program
+-- > verify pathToYices maxK program
 verify :: FilePath -> Int -> Stmt () -> IO ()
 verify yices maxK program = V.verify yices maxK $ snd $ evalStmt [] program
 
