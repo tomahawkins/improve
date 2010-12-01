@@ -85,16 +85,14 @@ instance Fractional (E Float) where
   recip a = 1 / a
   fromRational r = Const $ fromInteger (numerator r) / fromInteger (denominator r)
 
-data Statement
-  = AssignBool  (V Bool ) (E Bool )
-  | AssignInt   (V Int  ) (E Int  )
-  | AssignFloat (V Float) (E Float)
-  | Branch      (E Bool) Statement Statement
-  | Sequence    Statement Statement
-  | Assert      (E Bool)
-  | Assume      (E Bool)
-  | Label       Name Statement
-  | Null
+data Statement where
+  Assign   :: AllE a => V a -> E a -> Statement
+  Branch   :: E Bool -> Statement -> Statement -> Statement
+  Sequence :: Statement -> Statement -> Statement
+  Assert   :: E Bool -> Statement
+  Assume   :: E Bool -> Statement
+  Label    :: Name -> Statement -> Statement
+  Null     :: Statement
 
 data Const
   = Bool  Bool
@@ -110,15 +108,13 @@ varInfo (V input path init) = (input, path, const' init)
 -- Information about all of a program's variables.
 stmtVars :: Statement -> [VarInfo]
 stmtVars a = case a of
-  AssignBool  a b -> nub $ varInfo a : exprVars b
-  AssignInt   a b -> nub $ varInfo a : exprVars b
-  AssignFloat a b -> nub $ varInfo a : exprVars b
-  Branch a b c    -> nub $ exprVars a ++ stmtVars b ++ stmtVars c
-  Sequence a b    -> nub $ stmtVars a ++ stmtVars b
-  Assert a        -> exprVars a
-  Assume a        -> exprVars a
-  Label  _ a      -> stmtVars a
-  Null            -> []
+  Assign a b   -> nub $ varInfo a : exprVars b
+  Branch a b c -> nub $ exprVars a ++ stmtVars b ++ stmtVars c
+  Sequence a b -> nub $ stmtVars a ++ stmtVars b
+  Assert a     -> exprVars a
+  Assume a     -> exprVars a
+  Label  _ a   -> stmtVars a
+  Null         -> []
 
 -- Information about all of an expressions's variables.
 exprVars :: E a -> [VarInfo]

@@ -14,14 +14,11 @@ import Language.ImProve.Narrow
 -- | Verify a program with k-induction.
 verify :: FilePath -> Int -> Statement -> IO ()
 verify _ maxK _ | maxK < 1 = error "max k can not be less than 1"
-verify yices maxK program' = do
-  --putStrLn "state variable narrowing ..."
-  --print narrowing
-  mapM_ (verifyProgram yices format maxK) $ trimAssertions program
+verify yices maxK program = do
+  putStrLn "state variable narrowing ..."
+  print $ narrow program
+  mapM_ (verifyProgram yices format maxK $ narrow program) $ trimAssertions $ labelAssertions program
   where
-  --XXX Not efficient.  Constraints will get added on every stage.  Only needed at the begining.
-  narrowing = narrow program'
-  program = labelAssertions $ Sequence narrowing program'
   format = "verifying %-" ++ show (maximum [ length $ pathName path | path <- assertions program ]) ++ "s    "
 
 -- | Set of statements containing only one assertion.
@@ -91,20 +88,18 @@ assertions = assertions []
     _ -> []
 
 -- | Trim all unneeded stuff from a program.
-trimProgram :: Statement -> Statement
-trimProgram program = trim program
+trimProgram :: Statement -> Statement -> Statement
+trimProgram base program = trim program
   where
   vars = fixPoint []
   fixPoint :: [VarInfo] -> [VarInfo]
   fixPoint a = if sort (nub a) == sort (nub b) then sort (nub a) else fixPoint b
     where
-    b = requiredVars program a
+    b = requiredVars base a
   trim :: Statement -> Statement
   trim a = case a of
     Null -> Null
-    AssignBool  b _ -> if elem (varInfo b) vars then a else Null
-    AssignInt   b _ -> if elem (varInfo b) vars then a else Null
-    AssignFloat b _ -> if elem (varInfo b) vars then a else Null
+    Assign b _ -> if elem (varInfo b) vars then a else Null
     Branch a b c    -> case (trim b, trim c) of
       (Null, Null) -> Null
       (b, c)       -> Branch a b c
@@ -120,9 +115,7 @@ trimProgram program = trim program
 
 requiredVars :: Statement -> [VarInfo] -> [VarInfo]
 requiredVars a required = case a of
-  AssignBool  a b -> if elem (varInfo a) required then nub $ varInfo a : exprVars b ++ required else required
-  AssignInt   a b -> if elem (varInfo a) required then nub $ varInfo a : exprVars b ++ required else required
-  AssignFloat a b -> if elem (varInfo a) required then nub $ varInfo a : exprVars b ++ required else required
+  Assign a b -> if elem (varInfo a) required then nub $ varInfo a : exprVars b ++ required else required
   Branch a b c    -> if any (flip elem $ modifiedVars b ++ modifiedVars c) required || (not $ null $ requiredVars b []) || (not $ null $ requiredVars c [])
     then nub $ exprVars a ++ requiredVars b (requiredVars c required)
     else required
@@ -134,9 +127,7 @@ requiredVars a required = case a of
 
 modifiedVars :: Statement -> [VarInfo]
 modifiedVars a = case a of
-  AssignBool  a _ -> [varInfo a]
-  AssignInt   a _ -> [varInfo a]
-  AssignFloat a _ -> [varInfo a]
+  Assign a _ -> [varInfo a]
   Branch _ b c    -> modifiedVars b ++ modifiedVars c
   Sequence a b    -> modifiedVars a ++ modifiedVars b
   Assert _        -> []
@@ -145,16 +136,15 @@ modifiedVars a = case a of
   Null            -> []
 
 -- | Verify a trimmed program.
-verifyProgram :: FilePath -> String -> Int -> Statement -> IO ()
-verifyProgram yices format maxK program' = do
+verifyProgram :: FilePath -> String -> Int -> Statement -> Statement -> IO ()
+verifyProgram yices format maxK narrowing program' = do
   printf format name
   hFlush stdout
-  env0 <- initEnv program
+  env0 <- initEnv program  --XXX Need to add narrowing assumptions.
   execStateT (check yices name maxK program env0 1) env0
   return ()
   where
-  program = trimProgram program'
-  --program = program'
+  program = Sequence (trimProgram program' narrowing) (trimProgram program' program')
   name = pathName $ head' "a1" $ assertions program
 
 head' msg a = if null a then error msg else head a
@@ -212,9 +202,7 @@ evalStmt :: ExpY -> Statement -> Y ()
 evalStmt enabled a = case a of
   Null -> return ()
   Sequence a b -> evalStmt enabled a >> evalStmt enabled b
-  AssignBool  a b -> assign a b
-  AssignInt   a b -> assign a b
-  AssignFloat a b -> assign a b
+  Assign a b -> assign a b
   Assert a -> do
     a <- evalExpr a
     b <- newBoolVar

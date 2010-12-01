@@ -11,6 +11,7 @@ narrow stmt = assumes
   assumes = foldl Sequence Null [ Label lab $ Assume assume | (lab, opt) <- optimizations, assume <- opt stmt ]
   optimizations =
     [ ("constantAssigns", constantAssigns)
+    -- , ("timerRanges",     timerRanges)
     ]
 
 constantAssigns :: Statement -> [E Bool]
@@ -39,12 +40,8 @@ lastConstAssign info a = do
   where
   lastConstAssign :: Statement -> Maybe (Bool, [Const])
   lastConstAssign a = case a of
-    AssignBool  v (Const a) | varInfo v == info -> Just (True, [const' a])
-    AssignInt   v (Const a) | varInfo v == info -> Just (True, [const' a])
-    AssignFloat v (Const a) | varInfo v == info -> Just (True, [const' a])
-    AssignBool  v _ | varInfo v == info -> Nothing
-    AssignInt   v _ | varInfo v == info -> Nothing
-    AssignFloat v _ | varInfo v == info -> Nothing
+    Assign v (Const a) | varInfo v == info -> Just (True, [const' a])
+    Assign v _         | varInfo v == info -> Nothing
     Branch _ a b -> do
       (aDone, a) <- lastConstAssign a
       (bDone, b) <- lastConstAssign b
@@ -59,3 +56,26 @@ lastConstAssign info a = do
     Label  _ a -> lastConstAssign a
     _ -> Just (False, [])
 
+{-
+timerRanges :: Statement -> [E Bool]
+timerRanges stmt =
+  where
+
+:: VarInfo -> E Bool -> Statement -> 
+
+-- | Reduces a program only to assignments of a certain variable.
+assignedVar :: VarInfo -> Statement -> Statement
+assignedVar info a = case a of
+  AssignBool  v _ | varInfo v == info -> a
+  AssignInt   v _ | varInfo v == info -> a
+  AssignFloat v _ | varInfo v == info -> a
+  Branch cond a b -> case (assignedVar info a, assignedVar info b) of
+    (Null, Null) -> Null
+    (a, b)       -> Branch cond a b
+  Sequence a b -> case (assignedVar info a, assignedVar info b) of
+    (Null, Null) -> Null
+    (a, b)       -> Sequnece a b
+  Label a b -> Label a $ assignedVar b
+  _ -> Null
+
+-}

@@ -30,9 +30,7 @@ instance Show Statement where show = codeStmt "none" []
 
 codeStmt :: Name -> [Name] -> Statement -> String
 codeStmt name path a = case a of
-  AssignBool  a b -> name ++ "_variables." ++ pathName a ++ " = " ++ codeExpr b ++ ";\n"
-  AssignInt   a b -> name ++ "_variables." ++ pathName a ++ " = " ++ codeExpr b ++ ";\n"
-  AssignFloat a b -> name ++ "_variables." ++ pathName a ++ " = " ++ codeExpr b ++ ";\n"
+  Assign a b -> name ++ "_variables." ++ pathName a ++ " = " ++ codeExpr b ++ ";\n"
   Branch a b Null -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt name path b) ++ "}\n"
   Branch a b c    -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt name path b) ++ "}\nelse {\n" ++ indent (codeStmt name path c) ++ "}\n"
   Sequence a b -> codeStmt name path a ++ codeStmt name path b

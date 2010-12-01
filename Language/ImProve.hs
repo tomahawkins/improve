@@ -456,9 +456,9 @@ evalStmt path (Stmt f) = snd $ f (path, Null)
 
 class Assign a where
   (<==) :: V a -> E a -> Stmt ()
-instance Assign Bool  where a <== b = statement $ AssignBool  a b
-instance Assign Int   where a <== b = statement $ AssignInt   a b
-instance Assign Float where a <== b = statement $ AssignFloat a b
+instance Assign Bool  where a <== b = statement $ Assign a b
+instance Assign Int   where a <== b = statement $ Assign a b
+instance Assign Float where a <== b = statement $ Assign a b
 
 -- | Assert that a condition is true.
 assert :: E Bool -> Stmt ()
