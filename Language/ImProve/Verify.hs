@@ -92,14 +92,14 @@ trimProgram :: Statement -> Statement -> Statement
 trimProgram base program = trim program
   where
   vars = fixPoint []
-  fixPoint :: [VarInfo] -> [VarInfo]
+  fixPoint :: [UV] -> [UV]
   fixPoint a = if sort (nub a) == sort (nub b) then sort (nub a) else fixPoint b
     where
     b = requiredVars base a
   trim :: Statement -> Statement
   trim a = case a of
     Null -> Null
-    Assign b _ -> if elem (varInfo b) vars then a else Null
+    Assign b _ -> if elem (untype b) vars then a else Null
     Branch a b c    -> case (trim b, trim c) of
       (Null, Null) -> Null
       (b, c)       -> Branch a b c
@@ -113,9 +113,9 @@ trimProgram base program = trim program
       Null -> Null
       a    -> Label name a
 
-requiredVars :: Statement -> [VarInfo] -> [VarInfo]
+requiredVars :: Statement -> [UV] -> [UV]
 requiredVars a required = case a of
-  Assign a b -> if elem (varInfo a) required then nub $ varInfo a : exprVars b ++ required else required
+  Assign a b -> if elem (untype a) required then nub $ untype a : exprVars b ++ required else required
   Branch a b c    -> if any (flip elem $ modifiedVars b ++ modifiedVars c) required || (not $ null $ requiredVars b []) || (not $ null $ requiredVars c [])
     then nub $ exprVars a ++ requiredVars b (requiredVars c required)
     else required
@@ -125,9 +125,9 @@ requiredVars a required = case a of
   Label  _ a      -> requiredVars a required
   Null            -> required
 
-modifiedVars :: Statement -> [VarInfo]
+modifiedVars :: Statement -> [UV]
 modifiedVars a = case a of
-  Assign a _ -> [varInfo a]
+  Assign a _      -> [untype a]
   Branch _ b c    -> modifiedVars b ++ modifiedVars c
   Sequence a b    -> modifiedVars a ++ modifiedVars b
   Assert _        -> []
@@ -182,13 +182,13 @@ checkBasis yices program env0 = do
   env <- get
   r <- liftIO $ quickCheckY' yices [] $ reverse (cmds env)
           ++ [ASSERT $ NOT $ AND $ asserts env]
-          ++ [ ASSERT $ VarE (var env0 a) := evalConst' c | a@(input, _, c) <- stmtVars program, not input ]
+          ++ [ ASSERT $ VarE (var env0 a) := evalConst' c | a@(input, _, c) <- map varInfo $ stmtVars program, not input ]
           ++ [CHECK]
   return $ result r
 
 -- | Insert new input variables.
 inputs :: Statement -> Y ()
-inputs program = sequence_ [ addVar' a >>= addTrace . Input' (pathName path) | a@(input, path, _) <- stmtVars program, input ]
+inputs program = sequence_ [ addVar' a >>= addTrace . Input' (pathName path) | a@(input, path, _) <- map varInfo $ stmtVars program, input ]
 
 result :: ResY -> Result
 result a = case a of
@@ -323,7 +323,7 @@ data Env = Env
   }
  
 initEnv :: Statement -> IO Env
-initEnv program = execStateT (sequence_ [ addVar' a >>= addTrace . Init' (pathName path) | a@(input, path, _) <- stmtVars program, not input ]) Env
+initEnv program = execStateT (sequence_ [ addVar' a >>= addTrace . Init' (pathName path) | a@(input, path, _) <- map varInfo $ stmtVars program, not input ]) Env
   { nextId  = 0
   , var     = \ v -> error $ "variable not found in environment: " ++ pathName v
   , cmds    = []

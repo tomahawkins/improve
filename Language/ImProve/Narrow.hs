@@ -17,31 +17,32 @@ narrow stmt = assumes
 constantAssigns :: Statement -> [E Bool]
 constantAssigns stmt = mapMaybe f1 $ stmtVars stmt
   where
-  f1 :: VarInfo -> Maybe (E Bool)
-  f1 info@(input, path, init)
+  f1 :: UV -> Maybe (E Bool)
+  f1 uv
     | input = Nothing
     | otherwise = do
-      assigns <- lastConstAssign info stmt
+      assigns <- lastConstAssign uv stmt
       case (init, nub $ init : assigns) of
         (Bool _, [_, _]) -> Nothing
 	(_, a) -> return $ foldl1 Or $ map f2 a
-      where
-      f2 :: Const -> E Bool
-      f2 assign = case (init, assign) of
-        (Bool  a, Bool  b) -> Eq (Ref (V input path a)) (Const b)
-        (Int   a, Int   b) -> Eq (Ref (V input path a)) (Const b)
-        (Float a, Float b) -> Eq (Ref (V input path a)) (Const b)
-        _ -> undefined
+    where
+    f2 :: Const -> E Bool
+    f2 assign = case (init, assign) of
+      (Bool  a, Bool  b) -> Eq (Ref (V input path a)) (Const b)
+      (Int   a, Int   b) -> Eq (Ref (V input path a)) (Const b)
+      (Float a, Float b) -> Eq (Ref (V input path a)) (Const b)
+      _ -> undefined
+    (input, path, init) = varInfo uv
 
-lastConstAssign :: VarInfo -> Statement -> Maybe [Const]
-lastConstAssign info a = do
+lastConstAssign :: UV -> Statement -> Maybe [Const]
+lastConstAssign uv a = do
   (_, a) <- lastConstAssign a
   return $ nub a
   where
   lastConstAssign :: Statement -> Maybe (Bool, [Const])
   lastConstAssign a = case a of
-    Assign v (Const a) | varInfo v == info -> Just (True, [const' a])
-    Assign v _         | varInfo v == info -> Nothing
+    Assign v (Const a) | untype v == uv -> Just (True, [const' a])
+    Assign v _         | untype v == uv -> Nothing
     Branch _ a b -> do
       (aDone, a) <- lastConstAssign a
       (bDone, b) <- lastConstAssign b
@@ -63,19 +64,18 @@ timerRanges stmt =
 
 :: VarInfo -> E Bool -> Statement -> 
 
+-}
+
 -- | Reduces a program only to assignments of a certain variable.
-assignedVar :: VarInfo -> Statement -> Statement
-assignedVar info a = case a of
-  AssignBool  v _ | varInfo v == info -> a
-  AssignInt   v _ | varInfo v == info -> a
-  AssignFloat v _ | varInfo v == info -> a
-  Branch cond a b -> case (assignedVar info a, assignedVar info b) of
+assignedVar :: UV -> Statement -> Statement
+assignedVar v a = case a of
+  Assign v' _ | v == untype v' -> a
+  Branch cond a b -> case (assignedVar v a, assignedVar v b) of
     (Null, Null) -> Null
     (a, b)       -> Branch cond a b
-  Sequence a b -> case (assignedVar info a, assignedVar info b) of
+  Sequence a b -> case (assignedVar v a, assignedVar v b) of
     (Null, Null) -> Null
-    (a, b)       -> Sequnece a b
-  Label a b -> Label a $ assignedVar b
+    (a, b)       -> Sequence a b
+  Label a b -> Label a $ assignedVar v b
   _ -> Null
 
--}

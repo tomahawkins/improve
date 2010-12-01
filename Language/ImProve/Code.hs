@@ -22,7 +22,7 @@ code name stmt = do
     ++ codeVariables False scope ++ "\n"
     ++ "void " ++ name ++ "(void);\n\n"
   where
-  scope = case tree (\ (_, path, _) -> path) $ stmtVars stmt of
+  scope = case tree (\ (_, path, _) -> path) $ map varInfo $ stmtVars stmt of
     [] -> error "program contains no useful statements"
     a  -> T.Branch (name ++ "_variables") a
 

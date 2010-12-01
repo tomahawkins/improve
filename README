@@ -10,6 +10,8 @@ Release Notes:
 0.1.6    ???
 
 - Made Statement an instance of Show.
+- Made V a an instance of Eq and Ord.
+- Created untyped variables (UV) and extended varInfo.
 - Bugfix: shadow variable in Label collides with structure name.
 
 0.1.5    11/23/10

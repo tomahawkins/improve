@@ -1,6 +1,7 @@
 module Language.ImProve.Core
   ( E (..)
   , V (..)
+  , UV (..)
   , Name
   , Path
   , PathName (..)
@@ -22,28 +23,39 @@ type Name = String
 type Path = [Name]
 
 -- | A mutable variable.
-data V a = V Bool [Name] a deriving Eq
+data V a = V Bool [Name] a deriving (Eq, Ord)
+
+-- | An untyped variable.
+data UV
+  = UVBool  (V Bool)
+  | UVInt   (V Int)
+  | UVFloat (V Float)
+  deriving (Eq, Ord)
 
 class    PathName a         where pathName :: a -> String
 instance PathName Path      where pathName = intercalate "."
 instance PathName (V a)     where pathName (V _ path _) = pathName path
 instance PathName VarInfo   where pathName (_, path, _) = pathName path
 
-class AllE a where
+class Eq a => AllE a where
   zero   :: (Name -> a -> m (V a)) -> a
   const' :: a -> Const
+  untype :: V a -> UV
 
 instance AllE Bool where
   zero = const False
   const' = Bool
+  untype = UVBool
 
 instance AllE Int where
   zero = const 0
   const' = Int
+  untype = UVInt
   
 instance AllE Float where
   zero = const 0
   const' = Float
+  untype = UVFloat
 
 class    AllE a => NumE a
 instance NumE Int
@@ -102,13 +114,18 @@ data Const
 
 type VarInfo = (Bool, Path, Const)
 
-varInfo :: AllE a => V a -> VarInfo
-varInfo (V input path init) = (input, path, const' init)
+class VarInfo' a where varInfo :: a -> VarInfo
+instance AllE a => VarInfo' (V a) where varInfo (V input path init) = (input, path, const' init)
+instance VarInfo' UV where
+  varInfo a = case a of
+    UVBool a  -> varInfo a
+    UVInt  a  -> varInfo a
+    UVFloat a -> varInfo a
 
--- Information about all of a program's variables.
-stmtVars :: Statement -> [VarInfo]
+-- Variables in a program.
+stmtVars :: Statement -> [UV]
 stmtVars a = case a of
-  Assign a b   -> nub $ varInfo a : exprVars b
+  Assign a b   -> nub $ untype a : exprVars b
   Branch a b c -> nub $ exprVars a ++ stmtVars b ++ stmtVars c
   Sequence a b -> nub $ stmtVars a ++ stmtVars b
   Assert a     -> exprVars a
@@ -116,10 +133,10 @@ stmtVars a = case a of
   Label  _ a   -> stmtVars a
   Null         -> []
 
--- Information about all of an expressions's variables.
-exprVars :: E a -> [VarInfo]
+-- Variables in an expression.
+exprVars :: E a -> [UV]
 exprVars a = case a of
-  Ref a     -> [varInfo a]
+  Ref a     -> [untype a]
   Const _   -> []
   Add a b   -> exprVars a ++ exprVars b
   Sub a b   -> exprVars a ++ exprVars b
