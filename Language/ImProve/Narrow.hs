@@ -11,7 +11,7 @@ narrow stmt = assumes
   assumes = foldl Sequence Null [ Label lab $ Assume assume | (lab, opt) <- optimizations, assume <- opt stmt ]
   optimizations =
     [ ("constantAssigns", constantAssigns)
-    -- , ("timerRanges",     timerRanges)
+    , ("timerRanges",     timerRanges)
     ]
 
 constantAssigns :: Statement -> [E Bool]
@@ -57,14 +57,11 @@ lastConstAssign uv a = do
     Label  _ a -> lastConstAssign a
     _ -> Just (False, [])
 
-{-
 timerRanges :: Statement -> [E Bool]
-timerRanges stmt =
+timerRanges stmt = [] --XXX
   where
-
-:: VarInfo -> E Bool -> Statement -> 
-
--}
+  intCode :: [(VarInfo, Statement)]
+  intCode = [ (varInfo a, assignedVar a stmt) | a@(UVInt _) <- stmtVars stmt ]
 
 -- | Reduces a program only to assignments of a certain variable.
 assignedVar :: UV -> Statement -> Statement

@@ -7,7 +7,7 @@ backend SMT solver.
 
 Release Notes:
 
-0.1.6    ???
+0.1.6    12/02/10
 
 - Made Statement an instance of Show.
 - Made V a an instance of Eq and Ord.
