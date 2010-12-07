@@ -7,6 +7,11 @@ backend SMT solver.
 
 Release Notes:
 
+0.1.7    ???
+
+- Verification assumes property is true for inductive steps up to k.
+  Reduces the number of steps to converge on proof for some invariants.
+
 0.1.6    12/02/10
 
 - Made Statement an instance of Show.

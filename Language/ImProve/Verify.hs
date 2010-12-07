@@ -173,8 +173,13 @@ check yices name maxK program env0 k = do
 checkStep :: FilePath -> Y Result
 checkStep yices = do
   env <- get
-  r <- liftIO $ quickCheckY' yices [] $ reverse (cmds env) ++ [ASSERT $ NOT $ head' "a2" $ asserts env] ++ [CHECK]
+  r <- liftIO $ quickCheckY' yices [] $ reverse (cmds env) ++ [assert env] ++ [CHECK]
   return $ result r
+  where
+  assert env = case asserts env of
+    [] -> error "unexpected: no assertion"
+    [a] -> ASSERT $ NOT $ a
+    a : b -> ASSERT $ NOT $ AND b :=> a
 
 -- | Check induction basis.
 checkBasis :: FilePath -> Statement -> Env -> Y Result
