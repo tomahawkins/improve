@@ -4,6 +4,7 @@ module Language.ImProve.Core
   , UV (..)
   , Name
   , Path
+  , UID
   , PathName (..)
   , AllE (..)
   , NumE
@@ -13,6 +14,7 @@ module Language.ImProve.Core
   , varInfo
   , stmtVars
   , exprVars
+  , theorems
   ) where
 
 import Data.List
@@ -21,6 +23,8 @@ import Data.Ratio
 type Name = String
 
 type Path = [Name]
+
+type UID = Int
 
 -- | A mutable variable.
 data V a = V Bool [Name] a deriving (Eq, Ord)
@@ -101,7 +105,7 @@ data Statement where
   Assign   :: AllE a => V a -> E a -> Statement
   Branch   :: E Bool -> Statement -> Statement -> Statement
   Sequence :: Statement -> Statement -> Statement
-  Assert   :: E Bool -> Statement
+  Theorem  :: Int -> Int -> [Int] -> E Bool -> Statement  -- ^ Theorem id depth lemmas expr
   Assume   :: E Bool -> Statement
   Label    :: Name -> Statement -> Statement
   Null     :: Statement
@@ -122,18 +126,18 @@ instance VarInfo' UV where
     UVInt  a  -> varInfo a
     UVFloat a -> varInfo a
 
--- Variables in a program.
+-- | Variables in a program.
 stmtVars :: Statement -> [UV]
 stmtVars a = case a of
   Assign a b   -> nub $ untype a : exprVars b
   Branch a b c -> nub $ exprVars a ++ stmtVars b ++ stmtVars c
   Sequence a b -> nub $ stmtVars a ++ stmtVars b
-  Assert a     -> exprVars a
+  Theorem _ _ _ a -> exprVars a
   Assume a     -> exprVars a
   Label  _ a   -> stmtVars a
   Null         -> []
 
--- Variables in an expression.
+-- | Variables in an expression.
 exprVars :: E a -> [UV]
 exprVars a = case a of
   Ref a     -> [untype a]
@@ -152,4 +156,15 @@ exprVars a = case a of
   Le  a b   -> exprVars a ++ exprVars b
   Ge  a b   -> exprVars a ++ exprVars b
   Mux a b c -> exprVars a ++ exprVars b ++ exprVars c
+
+-- | Theorems in a program.
+theorems :: Statement -> [(Int, Int, [Int], E Bool)]
+theorems a = case a of
+  Theorem id k lemmas expr -> [(id, k, lemmas, expr)]
+  Assign _ _   -> []
+  Branch _ a b -> theorems a ++ theorems b
+  Sequence a b -> theorems a ++ theorems b
+  Assume _     -> []
+  Label  _ a   -> theorems a
+  Null         -> []
 

@@ -64,3 +64,10 @@ Analyze loops to determine worst case iteration.
 
 Need to model finite precision.
 
+
+Given:
+
+  a |- b
+  b |- c
+
+  To prove 'c', need to assume 'a' and 'b' or just 'b'?

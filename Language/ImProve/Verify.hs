@@ -1,7 +1,6 @@
 module Language.ImProve.Verify (verify) where
 
 import Control.Monad.State
-import Data.List
 import Math.SMT.Yices.Pipe
 import Math.SMT.Yices.Syntax
 import System.IO
@@ -9,87 +8,38 @@ import Text.Printf
 
 import Language.ImProve.Code ()
 import Language.ImProve.Core
-import Language.ImProve.Narrow
 
 -- | Verify a program with k-induction.
-verify :: FilePath -> Int -> Statement -> IO ()
-verify _ maxK _ | maxK < 1 = error "max k can not be less than 1"
-verify yices maxK program = do
-  putStrLn "state variable narrowing ..."
-  print $ narrow program
-  mapM_ (verifyProgram yices format maxK $ narrow program) $ trimAssertions $ labelAssertions program
+verify :: FilePath -> Statement -> IO ()
+verify yices program = mapM_ (proveTheorem yices format program) $ theorems program
   where
-  format = "verifying %-" ++ show (maximum [ length $ pathName path | path <- assertions program ]) ++ "s    "
+  format = "%-" ++ show (maximum [ length $ pathName $ theoremPath t program | (t, _, _, _) <- theorems program ]) ++ "s    "
 
--- | Set of statements containing only one assertion.
-trimAssertions :: Statement -> [Statement]
-trimAssertions program = [ a | a <- trimAssertions program, length (assertions a) == 1 ]
+-- | Path of a theorem.
+theoremPath :: Int -> Statement -> Path
+theoremPath t stmt = case f stmt of
+  Nothing -> error $ "theorem not found: " ++ show t
+  Just p  -> p
   where
-  trimAssertions :: Statement -> [Statement]
-  trimAssertions a = case a of
-    Sequence a b -> [ Sequence a (removeAssertions b) | a <- trimAssertions a ]
-                 ++ [ Sequence (removeAssertions a) b | b <- trimAssertions b ]
-    Branch cond a b -> [ Branch cond a (removeAssertions b) | a <- trimAssertions a ]
-                    ++ [ Branch cond (removeAssertions a) b | b <- trimAssertions b ]
-    Label name a -> [ Label name a | a <- trimAssertions a ]
-    a -> [a]
-
--- | Remove all assertions.
-removeAssertions :: Statement -> Statement
-removeAssertions a = case a of
-  Assert _ -> Null
-  Sequence a b -> Sequence (removeAssertions a) (removeAssertions b)
-  Branch cond a b -> Branch cond (removeAssertions a) (removeAssertions b)
-  Label name a -> Label name $ removeAssertions a
-  a -> a
-
--- | Ensure all assertions are uniquely labed.
-labelAssertions :: Statement -> Statement
-labelAssertions program = evalState (f program) ([], [], 1)
-  where
-  f :: Statement -> State (Path, [Path], Int) Statement
+  pair :: Statement -> Statement -> Maybe Path
+  pair a b = case (f a, f b) of
+    (Just a, _) -> Just a
+    (_, Just a) -> Just a
+    _ -> Nothing
+  f :: Statement -> Maybe Path
   f a = case a of
-    Branch a b c -> do
-      b <- f b
-      c <- f c
-      return $ Branch a b c
-    Sequence a b -> do
-      a <- f a
-      b <- f b
-      return $ Sequence a b
-    Assert a -> do
-      (path, paths, n) <- get
-      if elem path paths
-        then do
-          put (path, paths, n + 1)
-          f $ Label (show n) $ Assert a
-        else do
-          put (path, path : paths, n)
-          return $ Assert a
+    Theorem t' _ _ _ | t == t' -> Just [show t']
+    Sequence a b -> pair a b
+    Branch _ a b -> pair a b
     Label name a -> do
-      (path, paths, n) <- get
-      put (path ++ [name], paths, n)
-      a <- f a
-      (_, paths, n) <- get
-      put (path, paths, n)
-      return $ Label name a
-    a -> return a
+      path <- f a
+      return $ name : path
+    _ -> Nothing
 
--- | Paths of all assertions.
-assertions :: Statement -> [Path]
-assertions = assertions []
-  where
-  assertions :: Path -> Statement -> [Path]
-  assertions path a = case a of
-    Assert _ -> [path]
-    Sequence a b -> assertions path a ++ assertions path b
-    Branch _ a b -> assertions path a ++ assertions path b
-    Label name a -> assertions (path ++ [name]) a
-    _ -> []
-
+{-
 -- | Trim all unneeded stuff from a program.
-trimProgram :: Statement -> Statement -> Statement
-trimProgram base program = trim program
+trimProgram :: Int -> Statement -> Statement
+trimProgram t program = trim program
   where
   vars = fixPoint []
   fixPoint :: [UV] -> [UV]
@@ -134,40 +84,35 @@ modifiedVars a = case a of
   Assume _        -> []
   Label  _ a      -> modifiedVars a
   Null            -> []
+-}
 
--- | Verify a trimmed program.
-verifyProgram :: FilePath -> String -> Int -> Statement -> Statement -> IO ()
-verifyProgram yices format maxK narrowing program' = do
+-- | Prove a single theorem.
+proveTheorem :: FilePath -> String -> Statement -> (Int, Int, [Int], E Bool) -> IO ()
+proveTheorem yices format program (id, k, lemmas, _) = do
   printf format name
   hFlush stdout
-  env0 <- initEnv program  --XXX Need to add narrowing assumptions.
-  execStateT (check yices name maxK program env0 1) env0
+  env0 <- initEnv program
+  execStateT (check yices name id lemmas program env0 k) env0
   return ()
   where
-  program = Sequence (trimProgram program' narrowing) (trimProgram program' program')
-  name = pathName $ head' "a1" $ assertions program
-
-head' msg a = if null a then error msg else head a
+  name = pathName $ theoremPath id program
 
 data Result = Pass | Fail [ExpY] | Problem
 
 -- | k-induction.
-check :: FilePath -> Name -> Int -> Statement -> Env -> Int -> Y ()
-check yices name maxK program env0 k = do
-  addTrace $ Cycle' $ k - 1
-  inputs program
-  evalStmt (LitB True) program
+check :: FilePath -> Name -> Int -> [Int] -> Statement -> Env -> Int -> Y ()
+check yices name theorem lemmas program env0 k = do
+  sequence_ [ addTrace (Cycle' i) >> inputs program >> evalStmt theorem lemmas (LitB True) program | i <- [0 .. k - 1] ]
   resultBasis <- checkBasis yices program env0
   case resultBasis of
-    Fail a  -> liftIO (printf "FAILED: disproved basis in k = %d (see %s.trace)\n" k name) >> writeTrace name a
+    Fail a  -> liftIO (printf "FAILED: disproved basis (see %s.trace)\n" name) >> writeTrace name a
     Problem -> error "Verify.check1"
     Pass -> do
       resultStep <- checkStep yices
       case resultStep of
-        Fail a | k < maxK  -> check yices name maxK program env0 (k + 1)
-               | otherwise -> liftIO (printf "inconclusive: unable to proved step up to max k = %d (see %s.trace)\n" k name) >> writeTrace name a
+        Fail a  -> liftIO (printf "inconclusive: unable to proved step (see %s.trace)\n" name) >> writeTrace name a
         Problem -> error "Verify.check2"
-        Pass    -> liftIO $ printf "passed: proved step in k = %d\n" k
+        Pass    -> liftIO $ printf "proved\n"
         
 -- | Check induction step.
 checkStep :: FilePath -> Y Result
@@ -203,18 +148,23 @@ result a = case a of
   _ -> error $ "unexpected yices results: " ++ show a
 
 
-evalStmt :: ExpY -> Statement -> Y ()
-evalStmt enabled a = case a of
+evalStmt :: Int -> [Int] -> ExpY -> Statement -> Y ()
+evalStmt theorem lemmas enabled a = case a of
   Null -> return ()
-  Sequence a b -> evalStmt enabled a >> evalStmt enabled b
+  Sequence a b -> evalStmt theorem lemmas enabled a >> evalStmt theorem lemmas enabled b
   Assign a b -> assign a b
-  Assert a -> do
-    a <- evalExpr a
-    b <- newBoolVar
-    addCmd $ ASSERT (VarE b := (enabled :=> a))
-    env <- get
-    put env { asserts = VarE b : asserts env }
-    addTrace $ Assert' b
+  Theorem id _ _ a
+    | elem id lemmas -> do
+      a <- evalExpr a
+      addCmd $ ASSERT (enabled :=> a)
+    | id == theorem -> do
+      a <- evalExpr a
+      b <- newBoolVar
+      addCmd $ ASSERT (VarE b := (enabled :=> a))
+      env <- get
+      put env { asserts = VarE b : asserts env }
+      addTrace $ Assert' b
+    | otherwise -> return ()
   Assume a -> do
     a <- evalExpr a
     addCmd $ ASSERT (enabled :=> a)
@@ -224,16 +174,16 @@ evalStmt enabled a = case a of
     addCmd $ ASSERT (VarE b := a)
     env0 <- get
     put env0 { trace = [] }
-    evalStmt (AND [enabled, a]) onTrue
+    evalStmt theorem lemmas (AND [enabled, a]) onTrue
     env1 <- get
     put env1 { trace = [] }
-    evalStmt (AND [enabled, NOT a]) onFalse
+    evalStmt theorem lemmas (AND [enabled, NOT a]) onFalse
     env2 <- get
     put env2 { trace = Branch' b (reverse $ trace env1) (reverse $ trace env2) : trace env0 }
   Label name a -> do
     env0 <- get
     put env0 { trace = [] }
-    evalStmt enabled a
+    evalStmt theorem lemmas enabled a
     env1 <- get
     put env1 { trace = Label' name (reverse $ trace env1) : trace env0 }
   where

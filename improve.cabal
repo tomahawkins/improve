@@ -33,7 +33,6 @@ library
         Language.ImProve.Code
         Language.ImProve.Core
         Language.ImProve.Examples
-        Language.ImProve.Narrow
         Language.ImProve.Tree
         Language.ImProve.Verify
 

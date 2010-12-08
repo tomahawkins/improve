@@ -363,23 +363,23 @@ mux = Mux
 --   And assertion names, and hence counter example trace file names, are produce from labels.
 (-|) :: Name -> Stmt a -> Stmt a
 name -| stmt = do
-  (path0, stmt0) <- get
-  put (path0 ++ [name], Null)
+  (id, path0, stmt0) <- get
+  put (id, path0 ++ [name], Null)
   a <- stmt
-  (_, stmt1) <- get
-  put (path0, stmt0)
+  (id, _, stmt1) <- get
+  put (id, path0, stmt0)
   statement $ Label name stmt1
   return a
 
-get :: Stmt ([Name], Statement)
+get :: Stmt (Int, [Name], Statement)
 get = Stmt $ \ a -> (a, a)
 
-put :: ([Name], Statement) -> Stmt ()
+put :: (Int, [Name], Statement) -> Stmt ()
 put s = Stmt $ \ _ -> ((), s)
 
 getPath :: Stmt [Name]
 getPath = do
-  (path, _) <- get
+  (_, path, _) <- get
   return path
 
 var :: AllE a => Name -> a -> Stmt (V a)
@@ -437,7 +437,7 @@ decr :: V Int -> Stmt ()
 decr a = a <== ref a - 1
 
 -- | The Stmt monad holds variable declarations and statements.
-data Stmt a = Stmt (([Name], Statement) -> (a, ([Name], Statement)))
+data Stmt a = Stmt ((Int, [Name], Statement) -> (a, (Int, [Name], Statement)))
 
 instance Monad Stmt where
   return a = Stmt $ \ s -> (a, s)
@@ -449,10 +449,13 @@ instance Monad Stmt where
       Stmt f4 = f2 a
 
 statement :: Statement -> Stmt ()
-statement a = Stmt $ \ (path, statement) -> ((), (path, Sequence statement a))
+statement a = Stmt $ \ (id, path, statement) -> ((), (id, path, Sequence statement a))
 
-evalStmt :: [Name] -> Stmt () -> ([Name], Statement)
-evalStmt path (Stmt f) = snd $ f (path, Null)
+evalStmt :: Int -> [Name] -> Stmt () -> (Int, [Name], Statement)
+evalStmt id path (Stmt f) = snd $ f (id, path, Null)
+
+nextId :: Stmt Int
+nextId = Stmt $ \ (id, path, stmt) -> (id, (id + 1, path, stmt))
 
 class Assign a where
   (<==) :: V a -> E a -> Stmt ()
@@ -462,7 +465,9 @@ instance Assign Float where a <== b = statement $ Assign a b
 
 -- | Assert that a condition is true.
 assert :: E Bool -> Stmt ()
-assert = statement . Assert
+assert a = do
+  id <- nextId
+  statement $ Theorem id 4 [] a
 
 -- | Declare an assumption condition is true.
 --   Assumptions expressions must contain variables directly or indirectly related
@@ -473,9 +478,10 @@ assume a = statement $ Assume a
 -- | Conditional if-else.
 ifelse :: E Bool -> Stmt () -> Stmt () -> Stmt ()
 ifelse cond onTrue onFalse = do
-  path <- getPath
-  let (_, stmt1) = evalStmt path onTrue
-      (_, stmt2) = evalStmt path onFalse
+  (id0, path, stmt) <-get
+  let (id1, _, stmt1) = evalStmt id0 path onTrue
+      (id2, _, stmt2) = evalStmt id1 path onFalse
+  put (id2, path, stmt)
   statement $ Branch cond stmt1 stmt2
 
 -- | Conditional if without the else.
@@ -499,9 +505,13 @@ a ==> s = Case $ ifelse a s
 --
 -- > verify pathToYices maxK program
 verify :: FilePath -> Int -> Stmt () -> IO ()
-verify yices maxK program = V.verify yices maxK $ snd $ evalStmt [] program
+verify yices maxK program = V.verify yices stmt
+  where
+  (_, _, stmt) = evalStmt 0 [] program
 
 -- | Generate C code.
 code :: Name -> Stmt () -> IO ()
-code name program = C.code name $ snd $ evalStmt [] program
+code name program = C.code name stmt
+  where
+  (_, _, stmt) = evalStmt 0 [] program
 
