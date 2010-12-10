@@ -7,6 +7,10 @@ backend SMT solver.
 
 Release Notes:
 
+0.2.1    12/09/10
+
+- bugfix: lemmas referenced in induction step.
+
 0.2.0    12/08/10
 
 - Released 'assert' with 'theorem', which provides control of k
