@@ -148,6 +148,7 @@ module Language.ImProve
   , AllE
   , NumE
   , Name
+  , Theorem
   -- * Expressions
   -- ** Constants
   , true
@@ -209,9 +210,9 @@ module Language.ImProve
   -- ** Incrementing and decrementing.
   , incr
   , decr
-  -- ** Assertions and  Assumptions
-  , assert
+  -- ** Assumptions and theorems.
   , assume
+  , theorem
   -- * Verification
   , verify
   -- * Code Generation
@@ -454,20 +455,11 @@ statement a = Stmt $ \ (id, path, statement) -> ((), (id, path, Sequence stateme
 evalStmt :: Int -> [Name] -> Stmt () -> (Int, [Name], Statement)
 evalStmt id path (Stmt f) = snd $ f (id, path, Null)
 
-nextId :: Stmt Int
-nextId = Stmt $ \ (id, path, stmt) -> (id, (id + 1, path, stmt))
-
 class Assign a where
   (<==) :: V a -> E a -> Stmt ()
 instance Assign Bool  where a <== b = statement $ Assign a b
 instance Assign Int   where a <== b = statement $ Assign a b
 instance Assign Float where a <== b = statement $ Assign a b
-
--- | Assert that a condition is true.
-assert :: E Bool -> Stmt ()
-assert a = do
-  id <- nextId
-  statement $ Theorem id 4 [] a
 
 -- | Declare an assumption condition is true.
 --   Assumptions expressions must contain variables directly or indirectly related
@@ -475,10 +467,24 @@ assert a = do
 assume :: E Bool -> Stmt ()
 assume a = statement $ Assume a
 
+-- | Theorem to be proven or used as lemmas to assist proofs of other theorems.
+data Theorem = Theorem' Int
+
+-- | Defines a new theorem.
+--
+-- > theorem name k lemmas proposition
+theorem :: Name -> Int -> [Theorem] -> E Bool -> Stmt Theorem
+theorem name k lemmas proposition
+  | k < 1 = error $ "k-induction search depth must be > 0: " ++ name ++ " k = " ++ show k
+  | otherwise = do
+    (id, path, stmt) <- get
+    put (id + 1, path, Sequence stmt $ Label name $ Theorem id k [ i | Theorem' i <- lemmas ] proposition)
+    return $ Theorem' id
+
 -- | Conditional if-else.
 ifelse :: E Bool -> Stmt () -> Stmt () -> Stmt ()
 ifelse cond onTrue onFalse = do
-  (id0, path, stmt) <-get
+  (id0, path, stmt) <- get
   let (id1, _, stmt1) = evalStmt id0 path onTrue
       (id2, _, stmt2) = evalStmt id1 path onFalse
   put (id2, path, stmt)
@@ -504,8 +510,8 @@ a ==> s = Case $ ifelse a s
 -- | Verify a program.
 --
 -- > verify pathToYices maxK program
-verify :: FilePath -> Int -> Stmt () -> IO ()
-verify yices maxK program = V.verify yices stmt
+verify :: FilePath -> Stmt () -> IO ()
+verify yices program = V.verify yices stmt
   where
   (_, _, stmt) = evalStmt 0 [] program
 

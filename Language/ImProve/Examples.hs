@@ -83,7 +83,7 @@ counter = do
 
 -- | Verify the 'counter' example.
 verifyCounter :: IO ()
-verifyCounter = verify "yices" 20 counter
+verifyCounter = verify "yices" counter
 
 
 
@@ -111,6 +111,8 @@ arbiterSpec (requestA, requestB, requestC) (grantA, grantB, grantC) = do
   "Highest" -| assert $ requestA --> grantA
   "Medium"  -| assert $ (not_ requestA &&. requestB) --> grantB
   "Lowest"  -| assert $ (not_ requestA &&. not_ requestB &&. requestC) --> grantC
+
+  return ()
 
 -- | An arbiter implementation.
 arbiter1 :: (E Bool, E Bool, E Bool) -> Stmt (E Bool, E Bool, E Bool)
@@ -166,13 +168,13 @@ arbiter name implementation = name -| do
 verifyArbiters :: IO ()
 verifyArbiters = do
   putStrLn "\nVerifying arbiter1 ..."
-  verify "yices" 20 $ arbiter "arbiter1" arbiter1
+  verify "yices" $ arbiter "arbiter1" arbiter1
 
   putStrLn "\nVerifying arbiter2 ..."
-  verify "yices" 20 $ arbiter "arbiter2" arbiter2
+  verify "yices" $ arbiter "arbiter2" arbiter2
 
   putStrLn "\nVerifying arbiter2 ..."
-  verify "yices" 20 $ arbiter "arbiter3" arbiter3
+  verify "yices" $ arbiter "arbiter3" arbiter3
 
 -- | Build the different arbiter implementations.
 buildArbiters :: IO ()

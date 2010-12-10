@@ -7,8 +7,10 @@ backend SMT solver.
 
 Release Notes:
 
-0.1.7    ???
+0.2.0    12/08/10
 
+- Released 'assert' with 'theorem', which provides control of k
+  and the ability to provide lemmas to simplify the proof.
 - Verification assumes property is true for inductive steps up to k.
   Reduces the number of steps to converge on proof for some invariants.
 

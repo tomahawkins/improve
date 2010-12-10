@@ -102,18 +102,25 @@ data Result = Pass | Fail [ExpY] | Problem
 -- | k-induction.
 check :: FilePath -> Name -> Int -> [Int] -> Statement -> Env -> Int -> Y ()
 check yices name theorem lemmas program env0 k = do
-  sequence_ [ addTrace (Cycle' i) >> inputs program >> evalStmt theorem lemmas (LitB True) program | i <- [0 .. k - 1] ]
+  mapM_ step [0 .. k - 1]
   resultBasis <- checkBasis yices program env0
   case resultBasis of
     Fail a  -> liftIO (printf "FAILED: disproved basis (see %s.trace)\n" name) >> writeTrace name a
     Problem -> error "Verify.check1"
     Pass -> do
+      step k
       resultStep <- checkStep yices
       case resultStep of
         Fail a  -> liftIO (printf "inconclusive: unable to proved step (see %s.trace)\n" name) >> writeTrace name a
         Problem -> error "Verify.check2"
         Pass    -> liftIO $ printf "proved\n"
-        
+  where
+  step :: Int -> Y ()
+  step i = do
+      addTrace $ Cycle' i
+      inputs program
+      evalStmt theorem lemmas (LitB True) program
+
 -- | Check induction step.
 checkStep :: FilePath -> Y Result
 checkStep yices = do
@@ -122,9 +129,9 @@ checkStep yices = do
   return $ result r
   where
   assert env = case asserts env of
-    [] -> error "unexpected: no assertion"
-    [a] -> ASSERT $ NOT $ a
-    a : b -> ASSERT $ NOT $ AND b :=> a
+    []  -> error "unexpected: induction step needs at least 2 steps, got 0"
+    [_] -> error "unexpected: induction step needs at least 2 steps, got 1"
+    a -> ASSERT $ AND [last a, NOT $ head a]
 
 -- | Check induction basis.
 checkBasis :: FilePath -> Statement -> Env -> Y Result
