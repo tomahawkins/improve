@@ -7,6 +7,11 @@ backend SMT solver.
 
 Release Notes:
 
+0.2.2    ???
+
+- Theorem name formatting (removed unique identifer).
+- Better trace formatting.
+
 0.2.1    12/09/10
 
 - bugfix: lemmas referenced in induction step.

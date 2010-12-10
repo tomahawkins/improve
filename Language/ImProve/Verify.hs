@@ -1,6 +1,7 @@
 module Language.ImProve.Verify (verify) where
 
 import Control.Monad.State
+import Data.List
 import Math.SMT.Yices.Pipe
 import Math.SMT.Yices.Syntax
 import System.IO
@@ -13,7 +14,7 @@ import Language.ImProve.Core
 verify :: FilePath -> Statement -> IO ()
 verify yices program = mapM_ (proveTheorem yices format program) $ theorems program
   where
-  format = "%-" ++ show (maximum [ length $ pathName $ theoremPath t program | (t, _, _, _) <- theorems program ]) ++ "s    "
+  format = "%-" ++ show (maximum' [ length $ pathName $ theoremPath t program | (t, _, _, _) <- theorems program ]) ++ "s    "
 
 -- | Path of a theorem.
 theoremPath :: Int -> Statement -> Path
@@ -28,7 +29,7 @@ theoremPath t stmt = case f stmt of
     _ -> Nothing
   f :: Statement -> Maybe Path
   f a = case a of
-    Theorem t' _ _ _ | t == t' -> Just [show t']
+    Theorem t' _ _ _ | t == t' -> Just []
     Sequence a b -> pair a b
     Branch _ a b -> pair a b
     Label name a -> do
@@ -343,33 +344,41 @@ getVar v = do
 writeTrace :: String -> [ExpY] -> Y ()
 writeTrace name table' = do
   env <- get
-  liftIO $ writeFile (name ++ ".trace") $ concatMap f $ reverse $ trace env
+  let trace' = reverse $ trace env
+      format path indent = printf (printf "%%-%ds : %%s" $ maximum' $ 12 : map maxLabelWidth trace') (intercalate "." path) indent
+  liftIO $ writeFile (name ++ ".trace") $ concatMap (f format [] "") trace'
   where
   table = [ (n, if v then "true" else "false") | VarE n := LitB v <- table' ]
        ++ [ (n, show v) | VarE n := LitI v <- table' ]
        ++ [ (n, show v) | VarE n := LitR v <- table' ]
-  f :: Trace -> String
-  f a = case a of
+  f :: (Path -> String -> String) -> Path -> String -> Trace -> String
+  f format path' indent a = case a of
     Init' path var -> case lookup var table of
       Nothing -> ""
-      Just value -> "initialize " ++ path ++ " <== " ++ value ++ "\n"
-    Cycle' n -> "\nstep " ++ show n ++ "\n"
+      Just value -> format ["(initialize)"] indent ++ path ++ " <== " ++ value ++ "\n"
+    Cycle' n -> "\n\n(step " ++ show n ++ ")\n"
     Input' path var -> case lookup var table of
       Nothing -> ""
-      Just value -> "input " ++ path ++ " <== " ++ value ++ "\n"
+      Just value -> format ["(input)"] indent ++ path ++ " <== " ++ value ++ "\n"
     Assign' path var -> case lookup var table of
       Nothing -> ""
-      Just value -> path ++ " <== " ++ value ++ "\n"
+      Just value -> format path' indent ++ path ++ " <== " ++ value ++ "\n"
     Assert' var -> case lookup var table of
-      Just "true"  -> "assertion passed\n"
-      Just "false" -> "assertion FAILED\n"
+      Just "true"  -> format path' indent ++ "assertion passed\n"
+      Just "false" -> format path' indent ++ "assertion FAILED\n"
       _ -> ""
     Branch' cond onTrue onFalse -> case lookup cond table of
-      Just "true"  -> "ifelse true:\n"  ++ indent (concatMap f onTrue)
-      Just "false" -> "ifelse false:\n" ++ indent (concatMap f onFalse)
+      Just "true"  -> format path' indent ++ "ifelse true:\n"  ++ concatMap (f format path' $ "    " ++ indent) onTrue
+      Just "false" -> format path' indent ++ "ifelse false:\n" ++ concatMap (f format path' $ "    " ++ indent) onFalse
       _ -> ""
-    Label' name traces -> name ++ " |-\n" ++ indent (concatMap f traces)
+    Label' name traces -> concatMap (f format (path' ++ [name]) indent) traces
 
-indent :: String -> String
-indent = unlines . map ("    " ++) . lines
+maxLabelWidth :: Trace -> Int
+maxLabelWidth a = case a of
+  Branch' _ a b -> maximum' $ map maxLabelWidth $ a ++ b
+  Label' a b -> length a + 1 + maximum' (map maxLabelWidth b)
+  _ -> 0
 
+maximum' :: [Int] -> Int
+maximum' [] = 0
+maximum' a = maximum a
