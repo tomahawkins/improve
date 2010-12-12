@@ -71,15 +71,11 @@ counter = do
   counter <- int "counter" 0
 
   -- Specification.
-  "GreaterThanOrEqualTo0" -| assert $ ref counter >=. 0
-  "LessThan10"            -| assert $ ref counter <.  10
+  theorem "GreaterThanOrEqualTo0" 1 [] $ ref counter >=. 0
+  theorem "LessThan10"            1 [] $ ref counter <=. 9
 
   -- Implementation.
-  ifelse (ref counter ==. 10) (counter <== 0) (counter <== ref counter + 1)
-
-  -- Alternatives to try.
-  --ifelse "ResetCounter" (ref counter >=. 9) (counter <== 0) (counter <== ref counter + 1)
-  --ifelse "ResetCounter" (ref counter >=. 9 ||. ref counter <. 0)  (counter <== 0) (counter <== ref counter + 1)
+  ifelse (ref counter ==. 9) (counter <== 0) (counter <== ref counter + 1)
 
 -- | Verify the 'counter' example.
 verifyCounter :: IO ()
@@ -92,25 +88,25 @@ arbiterSpec :: (E Bool, E Bool, E Bool) -> (E Bool, E Bool, E Bool) -> Stmt ()
 arbiterSpec (requestA, requestB, requestC) (grantA, grantB, grantC) = do
 
   -- Mutual exclusion.  At most, only one requester granted at a time.
-  "OneHot" -| assert $      grantA &&. not_ grantB &&. not_ grantC
-                   ||. not_ grantA &&.      grantB &&. not_ grantC
-                   ||. not_ grantA &&. not_ grantB &&.      grantC
-                   ||. not_ grantA &&. not_ grantB &&. not_ grantC
+  theorem "OneHot" 1 [] $      grantA &&. not_ grantB &&. not_ grantC
+                      ||. not_ grantA &&.      grantB &&. not_ grantC
+                      ||. not_ grantA &&. not_ grantB &&.      grantC
+                      ||. not_ grantA &&. not_ grantB &&. not_ grantC
   
   -- No grants without requests.
-  "NotRequestedA" -| assert $ not_ requestA --> not_ grantA
-  "NotRequestedB" -| assert $ not_ requestB --> not_ grantB
-  "NotRequestedC" -| assert $ not_ requestC --> not_ grantC
+  theorem "NotRequestedA" 1 [] $ not_ requestA --> not_ grantA
+  theorem "NotRequestedB" 1 [] $ not_ requestB --> not_ grantB
+  theorem "NotRequestedC" 1 [] $ not_ requestC --> not_ grantC
 
   -- Grants to single requests.
-  "OnlyRequestA" -| assert $ (     requestA &&. not_ requestB &&. not_ requestC) --> grantA
-  "OnlyRequestB" -| assert $ (not_ requestA &&.      requestB &&. not_ requestC) --> grantB
-  "OnlyRequestC" -| assert $ (not_ requestA &&. not_ requestB &&.      requestC) --> grantC
+  theorem "OnlyRequestA" 1 [] $ (     requestA &&. not_ requestB &&. not_ requestC) --> grantA
+  theorem "OnlyRequestB" 1 [] $ (not_ requestA &&.      requestB &&. not_ requestC) --> grantB
+  theorem "OnlyRequestC" 1 [] $ (not_ requestA &&. not_ requestB &&.      requestC) --> grantC
 
   -- Priority.
-  "Highest" -| assert $ requestA --> grantA
-  "Medium"  -| assert $ (not_ requestA &&. requestB) --> grantB
-  "Lowest"  -| assert $ (not_ requestA &&. not_ requestB &&. requestC) --> grantC
+  theorem "Highest" 1 [] $ requestA --> grantA
+  theorem "Medium"  1 [] $ (not_ requestA &&. requestB) --> grantB
+  theorem "Lowest"  1 [] $ (not_ requestA &&. not_ requestB &&. requestC) --> grantC
 
   return ()
 

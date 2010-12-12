@@ -8,8 +8,7 @@ synopsis: An imperative, verifiable programming language for high assurance appl
 description:
   ImProve is an imperative programming language for high assurance applications.
   ImProve uses infinite state, unbounded model checking to verify programs adhere
-  to specifications, which are written in the form of assertion statements.
-  Yices (required) is the backend SMT solver.
+  to specifications.  Yices (required) is the backend SMT solver.
 
 author:     Tom Hawkins <tomahawkins@gmail.com>
 maintainer: Tom Hawkins <tomahawkins@gmail.com>
@@ -32,6 +31,7 @@ library
         Language.ImProve
         Language.ImProve.Code
         Language.ImProve.Core
+        Language.ImProve.Examples
         Language.ImProve.Tree
         Language.ImProve.Verify
 
