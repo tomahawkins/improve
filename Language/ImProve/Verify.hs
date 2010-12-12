@@ -37,56 +37,6 @@ theoremPath t stmt = case f stmt of
       return $ name : path
     _ -> Nothing
 
-{-
--- | Trim all unneeded stuff from a program.
-trimProgram :: Int -> Statement -> Statement
-trimProgram t program = trim program
-  where
-  vars = fixPoint []
-  fixPoint :: [UV] -> [UV]
-  fixPoint a = if sort (nub a) == sort (nub b) then sort (nub a) else fixPoint b
-    where
-    b = requiredVars base a
-  trim :: Statement -> Statement
-  trim a = case a of
-    Null -> Null
-    Assign b _ -> if elem (untype b) vars then a else Null
-    Branch a b c    -> case (trim b, trim c) of
-      (Null, Null) -> Null
-      (b, c)       -> Branch a b c
-    Sequence a b    -> case (trim a, trim b) of
-      (Null, a) -> a
-      (a, Null) -> a
-      (a, b)    -> Sequence a b
-    Assert a -> Assert a
-    Assume a -> if any (flip elem vars) (exprVars a) then Assume a else Null
-    Label name a -> case trim a of
-      Null -> Null
-      a    -> Label name a
-
-requiredVars :: Statement -> [UV] -> [UV]
-requiredVars a required = case a of
-  Assign a b -> if elem (untype a) required then nub $ untype a : exprVars b ++ required else required
-  Branch a b c    -> if any (flip elem $ modifiedVars b ++ modifiedVars c) required || (not $ null $ requiredVars b []) || (not $ null $ requiredVars c [])
-    then nub $ exprVars a ++ requiredVars b (requiredVars c required)
-    else required
-  Sequence a b    -> requiredVars a (requiredVars b required)
-  Assert a        -> nub $ exprVars a ++ required
-  Assume a        -> if any (flip elem required) (exprVars a) then nub $ exprVars a ++ required else required
-  Label  _ a      -> requiredVars a required
-  Null            -> required
-
-modifiedVars :: Statement -> [UV]
-modifiedVars a = case a of
-  Assign a _      -> [untype a]
-  Branch _ b c    -> modifiedVars b ++ modifiedVars c
-  Sequence a b    -> modifiedVars a ++ modifiedVars b
-  Assert _        -> []
-  Assume _        -> []
-  Label  _ a      -> modifiedVars a
-  Null            -> []
--}
-
 -- | Prove a single theorem.
 proveTheorem :: FilePath -> String -> Statement -> (Int, Int, [Int], E Bool) -> IO ()
 proveTheorem yices format program (id, k, lemmas, _) = do
@@ -103,24 +53,26 @@ data Result = Pass | Fail [ExpY] | Problem
 -- | k-induction.
 check :: FilePath -> Name -> Int -> [Int] -> Statement -> Env -> Int -> Y ()
 check yices name theorem lemmas program env0 k = do
-  mapM_ step [0 .. k - 1]
+  replicateM_ k step
   resultBasis <- checkBasis yices program env0
   case resultBasis of
-    Fail a  -> liftIO (printf "FAILED: disproved basis (see %s.trace)\n" name) >> writeTrace name a
+    Fail a  -> liftIO (printf "FAILED: disproved basis (see %s.trace)\n" name) >> writeTrace False name a
     Problem -> error "Verify.check1"
     Pass -> do
-      step k
+      step
       resultStep <- checkStep yices
       case resultStep of
-        Fail a  -> liftIO (printf "inconclusive: unable to proved step (see %s.trace)\n" name) >> writeTrace name a
+        Fail a  -> liftIO (printf "inconclusive: unable to proved step (see %s.trace)\n" name) >> writeTrace True name a
         Problem -> error "Verify.check2"
         Pass    -> liftIO $ printf "proved\n"
   where
-  step :: Int -> Y ()
-  step i = do
-      addTrace $ Cycle' i
-      inputs program
+  step :: Y ()
+  step = do
+      addTrace $ Step' 0
+      sequence_ [ getVar' a >>= addTrace . State' (pathName path) | a@(input, path, _) <- sortBy f $ map varInfo $ stmtVars program, not input ]
+      sequence_ [ addVar' a >>= addTrace . Input' (pathName path) | a@(input, path, _) <- sortBy f $ map varInfo $ stmtVars program,     input ]
       evalStmt theorem lemmas (LitB True) program
+  f (_, a, _) (_, b, _) = compare a b
 
 -- | Check induction step.
 checkStep :: FilePath -> Y Result
@@ -143,10 +95,6 @@ checkBasis yices program env0 = do
           ++ [ ASSERT $ VarE (var env0 a) := evalConst' c | a@(input, _, c) <- map varInfo $ stmtVars program, not input ]
           ++ [CHECK]
   return $ result r
-
--- | Insert new input variables.
-inputs :: Statement -> Y ()
-inputs program = sequence_ [ addVar' a >>= addTrace . Input' (pathName path) | a@(input, path, _) <- map varInfo $ stmtVars program, input ]
 
 result :: ResY -> Result
 result a = case a of
@@ -286,7 +234,7 @@ data Env = Env
   }
  
 initEnv :: Statement -> IO Env
-initEnv program = execStateT (sequence_ [ addVar' a >>= addTrace . Init' (pathName path) | a@(input, path, _) <- map varInfo $ stmtVars program, not input ]) Env
+initEnv program = execStateT (sequence_ [ addVar' a | a@(input, _, _) <- map varInfo $ stmtVars program, not input ]) Env
   { nextId  = 0
   , var     = \ v -> error $ "variable not found in environment: " ++ pathName v
   , cmds    = []
@@ -295,8 +243,8 @@ initEnv program = execStateT (sequence_ [ addVar' a >>= addTrace . Init' (pathNa
   }
 
 data Trace
-  = Init'   Name Var
-  | Cycle'  Int
+  = Step'  Int
+  | State'  Name Var
   | Input'  Name Var
   | Assign' Name Var
   | Assert' Var
@@ -336,42 +284,59 @@ addTrace t = do
   env <- get
   put env { trace = t : trace env }
 
-getVar :: AllE a => V a -> Y String
-getVar v = do
-  env <- get
-  return $ var env $ varInfo v
+getVar :: AllE a => V a -> Y Var
+getVar v = getVar' $ varInfo v
 
-writeTrace :: String -> [ExpY] -> Y ()
-writeTrace name table' = do
+getVar' :: VarInfo -> Y Var
+getVar' v = do
   env <- get
-  let trace' = reverse $ trace env
+  return $ var env $ v
+
+writeTrace :: Bool -> String -> [ExpY] -> Y ()
+writeTrace dropFirst name table' = do
+  env <- get
+  let trace'' = reverse $ trace env
+      trace' = reorderSteps 1 $ if dropFirst then dropWhile notStep $ tail trace'' else trace''
       format path indent = printf (printf "%%-%ds : %%s" $ maximum' $ 12 : map maxLabelWidth trace') (intercalate "." path) indent
-  liftIO $ writeFile (name ++ ".trace") $ concatMap (f format [] "") trace'
+      varFormat :: Name -> String
+      varFormat = printf $ printf "%%-%ds" l
+        where
+        l = maximum $ 0 : map length ([ n | State' n _ <- trace' ] ++ [ n | Input' n _ <- trace' ])
+  liftIO $ writeFile (name ++ ".trace") $ concatMap (f varFormat format [] "") trace'
   where
+  notStep (Step' _) = False
+  notStep _ = True
+
+  reorderSteps :: Int -> [Trace] -> [Trace]
+  reorderSteps _ [] = []
+  reorderSteps n (Step' _ : a) = Step' n : reorderSteps (n + 1) a
+  reorderSteps n (a : b) = a : reorderSteps n b
+
   table = [ (n, if v then "true" else "false") | VarE n := LitB v <- table' ]
        ++ [ (n, show v) | VarE n := LitI v <- table' ]
        ++ [ (n, show v) | VarE n := LitR v <- table' ]
-  f :: (Path -> String -> String) -> Path -> String -> Trace -> String
-  f format path' indent a = case a of
-    Init' path var -> case lookup var table of
+
+  f :: (String -> String) -> (Path -> String -> String) -> Path -> String -> Trace -> String
+  f varFormat format path' indent a = case a of
+    Step' n -> "(step " ++ show n ++ ")\n"
+    State' path var -> case lookup var table of
       Nothing -> ""
-      Just value -> format ["(initialize)"] indent ++ path ++ " <== " ++ value ++ "\n"
-    Cycle' n -> "\n\n(step " ++ show n ++ ")\n"
+      Just value -> format ["(state)"] indent ++ varFormat path ++ " == " ++ value ++ "\n"
     Input' path var -> case lookup var table of
       Nothing -> ""
-      Just value -> format ["(input)"] indent ++ path ++ " <== " ++ value ++ "\n"
+      Just value -> format ["(input)"] indent ++ varFormat path ++ " <== " ++ value ++ "\n"
     Assign' path var -> case lookup var table of
       Nothing -> ""
       Just value -> format path' indent ++ path ++ " <== " ++ value ++ "\n"
     Assert' var -> case lookup var table of
-      Just "true"  -> format path' indent ++ "assertion passed\n"
-      Just "false" -> format path' indent ++ "assertion FAILED\n"
+      Just "true"  -> format path' indent ++ "theorem assertion passed\n"
+      Just "false" -> format path' indent ++ "theorem assertion FAILED\n"
       _ -> ""
     Branch' cond onTrue onFalse -> case lookup cond table of
-      Just "true"  -> format path' indent ++ "ifelse true:\n"  ++ concatMap (f format path' $ "    " ++ indent) onTrue
-      Just "false" -> format path' indent ++ "ifelse false:\n" ++ concatMap (f format path' $ "    " ++ indent) onFalse
+      Just "true"  -> format path' indent ++ "ifelse true:\n"  ++ concatMap (f varFormat format path' $ "    " ++ indent) onTrue
+      Just "false" -> format path' indent ++ "ifelse false:\n" ++ concatMap (f varFormat format path' $ "    " ++ indent) onFalse
       _ -> ""
-    Label' name traces -> concatMap (f format (path' ++ [name]) indent) traces
+    Label' name traces -> concatMap (f varFormat format (path' ++ [name]) indent) traces
 
 maxLabelWidth :: Trace -> Int
 maxLabelWidth a = case a of
