@@ -105,7 +105,7 @@ data Statement where
   Assign   :: AllE a => V a -> E a -> Statement
   Branch   :: E Bool -> Statement -> Statement -> Statement
   Sequence :: Statement -> Statement -> Statement
-  Theorem  :: Int -> Int -> [Int] -> E Bool -> Statement  -- ^ Theorem id depth lemmas expr
+  Theorem  :: Int -> Int -> [Int] -> E Bool -> Statement -- Theorem id k lemmas expr
   Assume   :: E Bool -> Statement
   Label    :: Name -> Statement -> Statement
   Null     :: Statement

@@ -6,6 +6,10 @@ Yices (required) is the backend SMT solver.
 
 Release Notes:
 
+0.2.3    12/13/10
+
+- Fixed haddock documentation.
+
 0.2.2    12/12/10
 
 - Theorem name formatting (removed unique identifer).
