@@ -1,7 +1,7 @@
 module Language.ImProve.Core
   ( E (..)
   , V (..)
-  , UV (..)
+  , A (..)
   , Name
   , Path
   , UID
@@ -13,7 +13,6 @@ module Language.ImProve.Core
   , VarInfo
   , varInfo
   , stmtVars
-  , exprVars
   , theorems
   ) where
 
@@ -27,39 +26,38 @@ type Path = [Name]
 type UID = Int
 
 -- | A mutable variable.
-data V a = V Bool [Name] a deriving (Eq, Ord)
+data V a
+  = V Bool Path a
+  -- | VArray (A a) (E Int)
+  deriving Eq
 
--- | An untyped variable.
-data UV
-  = UVBool  (V Bool)
-  | UVInt   (V Int)
-  | UVFloat (V Float)
-  deriving (Eq, Ord)
+-- | A mutable array.
+data A a = A Bool Path [a] deriving (Eq, Ord)
 
-class    PathName a         where pathName :: a -> String
-instance PathName Path      where pathName = intercalate "."
-instance PathName (V a)     where pathName (V _ path _) = pathName path
-instance PathName VarInfo   where pathName (_, path, _) = pathName path
+class    PathName a       where pathName :: a -> String
+instance PathName Path    where pathName = intercalate "."
+instance PathName (V a)   where
+  pathName a = case a of
+    V _ path _ -> pathName path
+    -- VArray a _ -> pathName a
+instance PathName (A a)   where pathName (A _ a _) = pathName a
+instance PathName VarInfo where pathName (_, path, _) = pathName path
 
 class Eq a => AllE a where
   zero   :: (Name -> a -> m (V a)) -> a
   const' :: a -> Const
-  untype :: V a -> UV
 
 instance AllE Bool where
   zero = const False
   const' = Bool
-  untype = UVBool
 
 instance AllE Int where
   zero = const 0
   const' = Int
-  untype = UVInt
   
 instance AllE Float where
   zero = const 0
   const' = Float
-  untype = UVFloat
 
 class    AllE a => NumE a
 instance NumE Int
@@ -111,25 +109,25 @@ data Statement where
   Null     :: Statement
 
 data Const
-  = Bool  Bool
-  | Int   Int
-  | Float Float
+  = Bool   Bool
+  | Int    Int
+  | Float  Float
+--  | ABool  [Bool]
+--  | AInt   [Int]
+--  | AFloat [Float]
   deriving (Show, Eq, Ord)
 
 type VarInfo = (Bool, Path, Const)
 
-class VarInfo' a where varInfo :: a -> VarInfo
-instance AllE a => VarInfo' (V a) where varInfo (V input path init) = (input, path, const' init)
-instance VarInfo' UV where
-  varInfo a = case a of
-    UVBool a  -> varInfo a
-    UVInt  a  -> varInfo a
-    UVFloat a -> varInfo a
+varInfo :: AllE a => V a -> VarInfo
+varInfo a = case a of
+  V input path init -> (input, path, const' init)
+  --VArray (A input path init) ->
 
 -- | Variables in a program.
-stmtVars :: Statement -> [UV]
+stmtVars :: Statement -> [VarInfo]
 stmtVars a = case a of
-  Assign a b   -> nub $ untype a : exprVars b
+  Assign a b   -> nub $ varInfo a : exprVars b
   Branch a b c -> nub $ exprVars a ++ stmtVars b ++ stmtVars c
   Sequence a b -> nub $ stmtVars a ++ stmtVars b
   Theorem _ _ _ a -> exprVars a
@@ -138,9 +136,9 @@ stmtVars a = case a of
   Null         -> []
 
 -- | Variables in an expression.
-exprVars :: E a -> [UV]
+exprVars :: E a -> [VarInfo]
 exprVars a = case a of
-  Ref a     -> [untype a]
+  Ref a     -> [varInfo a]
   Const _   -> []
   Add a b   -> exprVars a ++ exprVars b
   Sub a b   -> exprVars a ++ exprVars b

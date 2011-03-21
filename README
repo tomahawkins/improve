@@ -6,6 +6,10 @@ Yices (required) is the backend SMT solver.
 
 Release Notes:
 
+0.2.4    ???
+
+- Removed UV types.
+
 0.2.3    12/13/10
 
 - Fixed haddock documentation.

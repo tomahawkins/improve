@@ -187,6 +187,9 @@ module Language.ImProve
   , mux
   -- ** Lookups
   , linear
+  -- ** Array Indexing
+  -- , (!)
+  -- , (!.)
   -- * Statements
   , Stmt
   -- ** Variable Hierarchical Scope and Statement Labeling 
@@ -225,6 +228,7 @@ import Language.ImProve.Core
 import qualified Language.ImProve.Verify as V
 import qualified Language.ImProve.Code   as C
 
+--infixl 9 !, !.
 infixl 7 *., /., `div_`, `mod_`
 infix  4 ==., /=., <., <=., >., >=.
 infixl 3 &&.
@@ -358,6 +362,14 @@ ref = Ref
 -- > mux test onTrue onFalse
 mux :: AllE a => E Bool -> E a -> E a -> E a
 mux = Mux
+
+-- | Array index to a variable.
+--(!) :: AllE a => A a -> E Int -> V a
+--(!) a i = VArray a i
+
+-- | Array index to an expression.
+--(!.) :: AllE a => A a -> E Int -> E a
+--(!.) a i = ref $ a ! i
 
 -- | Labels a statement and creates a variable scope.
 --   Labels are used in counter examples to trace the program execution.

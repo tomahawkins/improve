@@ -69,8 +69,8 @@ check yices name theorem lemmas program env0 k = do
   step :: Y ()
   step = do
       addTrace $ Step' 0
-      sequence_ [ getVar' a >>= addTrace . State' (pathName path) | a@(input, path, _) <- sortBy f $ map varInfo $ stmtVars program, not input ]
-      sequence_ [ addVar' a >>= addTrace . Input' (pathName path) | a@(input, path, _) <- sortBy f $ map varInfo $ stmtVars program,     input ]
+      sequence_ [ getVar' a >>= addTrace . State' (pathName path) | a@(input, path, _) <- sortBy f $ stmtVars program, not input ]
+      sequence_ [ addVar' a >>= addTrace . Input' (pathName path) | a@(input, path, _) <- sortBy f $ stmtVars program,     input ]
       evalStmt theorem lemmas (LitB True) program
   f (_, a, _) (_, b, _) = compare a b
 
@@ -92,7 +92,7 @@ checkBasis yices program env0 = do
   env <- get
   r <- liftIO $ quickCheckY' yices [] $ reverse (cmds env)
           ++ [ASSERT $ NOT $ AND $ asserts env]
-          ++ [ ASSERT $ VarE (var env0 a) := evalConst' c | a@(input, _, c) <- map varInfo $ stmtVars program, not input ]
+          ++ [ ASSERT $ VarE (var env0 a) := evalConst' c | a@(input, _, c) <- stmtVars program, not input ]
           ++ [CHECK]
   return $ result r
 
@@ -234,7 +234,7 @@ data Env = Env
   }
  
 initEnv :: Statement -> IO Env
-initEnv program = execStateT (sequence_ [ addVar' a | a@(input, _, _) <- map varInfo $ stmtVars program, not input ]) Env
+initEnv program = execStateT (sequence_ [ addVar' a | a@(input, _, _) <- stmtVars program, not input ]) Env
   { nextId  = 0
   , var     = \ v -> error $ "variable not found in environment: " ++ pathName v
   , cmds    = []
