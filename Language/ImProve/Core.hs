@@ -13,6 +13,7 @@ module Language.ImProve.Core
   , VarInfo
   , varInfo
   , stmtVars
+  , arrayLength
   , theorems
   ) where
 
@@ -33,6 +34,10 @@ data V a
 
 -- | A mutable array.
 data A a = A Bool Path [a] deriving (Eq, Ord)
+
+-- | Length of array.
+arrayLength :: A a -> Int
+arrayLength (A _ _ a) = length a
 
 class    PathName a       where pathName :: a -> String
 instance PathName Path    where pathName = intercalate "."
@@ -112,9 +117,9 @@ data Const
   = Bool   Bool
   | Int    Int
   | Float  Float
---  | ABool  [Bool]
---  | AInt   [Int]
---  | AFloat [Float]
+  -- | ABool  [Bool]
+  -- | AInt   [Int]
+  -- | AFloat [Float]
   deriving (Show, Eq, Ord)
 
 type VarInfo = (Bool, Path, Const)
