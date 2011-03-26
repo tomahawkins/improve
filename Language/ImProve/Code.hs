@@ -104,7 +104,21 @@ data Block
   = Inport    Const
   | Outport   Const
   | UnitDelay Const
-  | Switch
+  | Const' Const
+  | Add'
+  | Sub'
+  | Mul' Const
+  | Div' Const
+  | Mod' Int
+  | Not'
+  | And'
+  | Or'
+  | Eq'
+  | Lt'
+  | Gt'
+  | Le'
+  | Ge'
+  | Mux'
 
 data Netlist = Netlist
   { nextId :: Int
@@ -139,7 +153,7 @@ codeMdl name stmt = do
 -- A switch block.
 switch :: Name -> Name -> Name -> Net Name
 switch a b c = do
-  name <- block Switch
+  name <- block Mux'
   net a (name, 0)
   net b (name, 1)
   net c (name, 2)
@@ -222,5 +236,48 @@ elaborate a = case a of
   Null            -> return ()
 
 evalExpr :: E a -> Net Name
-evalExpr a = return "" --XXX
+evalExpr a = case a of
+  Ref (V _ path _) -> getNet path
+  Const a   -> block $ Const' $ const' a
+  Add a b   -> f2 Add' a b
+  Sub a b   -> f2 Sub' a b
+  Mul a b   -> f1 (Mul' $ const' b) a
+  Div a b   -> f1 (Div' $ const' b) a
+  Mod a b   -> f1 (Mod' b) a
+  Not a     -> f1 Not' a
+  And a b   -> f2 And' a b
+  Or  a b   -> f2 Or'  a b
+  Eq  a b   -> f2 Eq'  a b
+  Lt  a b   -> f2 Lt'  a b
+  Gt  a b   -> f2 Gt'  a b
+  Le  a b   -> f2 Le'  a b
+  Ge  a b   -> f2 Ge'  a b
+  Mux a b c -> f3 Mux' a b c
+  where
+  f1 :: Block -> E a -> Net Name
+  f1 b a1 = do
+    a1 <- evalExpr a1
+    b  <- block b
+    net a1 (b, 0)
+    return b
+
+  f2 :: Block -> E a -> E b -> Net Name
+  f2 b a1 a2 = do
+    a1 <- evalExpr a1
+    a2 <- evalExpr a2
+    b  <- block b
+    net a1 (b, 0)
+    net a2 (b, 1)
+    return b
+
+  f3 :: Block -> E a -> E b -> E c -> Net Name
+  f3 b a1 a2 a3 = do
+    a1 <- evalExpr a1
+    a2 <- evalExpr a2
+    a3 <- evalExpr a3
+    b  <- block b
+    net a1 (b, 0)
+    net a2 (b, 1)
+    net a3 (b, 2)
+    return b
 
