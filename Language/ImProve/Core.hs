@@ -29,7 +29,6 @@ type UID = Int
 -- | A mutable variable.
 data V a
   = V Bool Path a
-  -- | VArray (A a) (E Int)
   deriving Eq
 
 -- | A mutable array.
@@ -117,9 +116,6 @@ data Const
   = Bool   Bool
   | Int    Int
   | Float  Float
-  -- | ABool  [Bool]
-  -- | AInt   [Int]
-  -- | AFloat [Float]
   deriving (Show, Eq, Ord)
 
 type VarInfo = (Bool, Path, Const)
@@ -127,7 +123,6 @@ type VarInfo = (Bool, Path, Const)
 varInfo :: AllE a => V a -> VarInfo
 varInfo a = case a of
   V input path init -> (input, path, const' init)
-  --VArray (A input path init) ->
 
 -- | Variables in a program.
 stmtVars :: Statement -> [VarInfo]

@@ -1,5 +1,5 @@
 name:    improve
-version: 0.2.4
+version: 0.3.0
 
 category: Language, Formal Methods, Embedded
 
@@ -9,6 +9,7 @@ description:
   ImProve is an imperative programming language for high assurance applications.
   ImProve uses infinite state, unbounded model checking to verify programs adhere
   to specifications.  Yices (required) is the backend SMT solver.
+  ImProve compiles to C and Simulink.
 
 author:     Tom Hawkins <tomahawkins@gmail.com>
 maintainer: Tom Hawkins <tomahawkins@gmail.com>

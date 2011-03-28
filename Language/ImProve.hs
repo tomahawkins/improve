@@ -57,13 +57,13 @@ switch (a) {              'case_' $ do
 /Assertion Statements/
 
 @
-assert(condition);        'assert' condition
+assert(condition);        'theorem' name k lemmas condition
 @
 
 /Statement Labels/
 
 @
-label: {                  \"label\" '|' do
+label: {                  \"label\" '-|' do
     a();                      a
     b();                      b
 }
@@ -78,7 +78,7 @@ true                      'true'
 false                     'false'
 0                         0
 100                       100
-1.0                       1     -- float
+1.0                       1
 3.14                      3.14
 
 /Variable Reference/
@@ -187,9 +187,6 @@ module Language.ImProve
   , mux
   -- ** Lookups
   , linear
-  -- ** Array Indexing
-  -- , (!)
-  -- , (!.)
   -- * Statements
   , Stmt
   -- ** Variable Hierarchical Scope and Statement Labeling 
@@ -346,7 +343,7 @@ mod_ :: E Int -> Int -> E Int
 mod_ _ 0 = error "divide by zero (mod_)"
 mod_ a b = Mod a b
 
--- | Linear interpolation and extrapolation between two points.
+-- | Linear interpolation and extrapolation of two points.
 linear :: (Float, Float) -> (Float, Float) -> E Float -> E Float
 linear (x1, y1) (x2, y2) a = a *. slope + constant inter
   where
@@ -476,8 +473,8 @@ instance Assign Float where a <== b = statement $ Assign a b
 -- | Declare an assumption condition is true.
 --   Assumptions expressions must contain variables directly or indirectly related
 --   to the assertion under verification, otherwise they will be ignored.
-assume :: E Bool -> Stmt ()
-assume a = statement $ Assume a
+assume :: Name -> E Bool -> Stmt ()
+assume name a = statement $ Label name $ Assume a
 
 -- | Theorem to be proven or used as lemmas to assist proofs of other theorems.
 data Theorem = Theorem' Int

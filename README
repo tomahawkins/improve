@@ -3,11 +3,14 @@ high assurance applications.  ImProve uses infinite state, unbounded
 model checking to verify programs adhere to specifications.
 Yices (required) is the backend SMT solver.
 
+ImProve generates C code and Simulink models for implementation.
+
 
 Release Notes:
 
-0.2.4    ???
+0.3.0    03/28/11
 
+- Simulink model generation.
 - Removed UV types.
 
 0.2.3    12/13/10

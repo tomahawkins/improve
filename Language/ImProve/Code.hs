@@ -39,8 +39,8 @@ codeStmt name path a = case a of
   Branch a b Null -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt name path b) ++ "}\n"
   Branch a b c    -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt name path b) ++ "}\nelse {\n" ++ indent (codeStmt name path c) ++ "}\n"
   Sequence a b -> codeStmt name path a ++ codeStmt name path b
-  Theorem _ _ _ a -> "assert((" ++ show (intercalate "." path) ++ ", " ++ codeExpr a ++ "));\n"
-  Assume a -> "assert((" ++ show (intercalate "." path) ++ ", " ++ codeExpr a ++ "));\n"
+  Theorem _ _ _ a -> "assert((" ++ show (pathName path) ++ ", " ++ codeExpr a ++ "));\n"
+  Assume a -> "assert((" ++ show (pathName path) ++ ", " ++ codeExpr a ++ "));\n"
   Label name' a -> "/*" ++ name' ++ "*/\n" ++ indent (codeStmt name (path ++ [name']) a)
   Null -> ""
   where
@@ -103,15 +103,17 @@ showConstType a = case a of
 type Net = StateT Netlist IO
 
 data Block
-  = Inport    Const
-  | Outport   Const
+  = Inport  Const
+  | Outport Const
   | UnitDelay Const
+  | Cast String
+  | Assertion
   | Const' Const
   | Add'
   | Sub'
-  | Mul' Const
-  | Div' Const
-  | Mod' Int
+  | Mul'
+  | Div'
+  | Mod'
   | Not'
   | And'
   | Or'
@@ -124,6 +126,7 @@ data Block
 
 data Netlist = Netlist
   { nextId :: Int
+  , path   :: Path
   , vars   :: [Path]
   , env    :: [Name]
   , blocks :: [(Name, Block)]
@@ -133,7 +136,7 @@ data Netlist = Netlist
 -- Simulink generation.
 codeMdl :: Name -> Statement -> IO ()
 codeMdl name stmt = do
-  net <- execStateT all (Netlist 0 paths env [] [])
+  net <- execStateT all (Netlist 0 [] paths env [] [])
   writeFile (name ++ ".mdl") $ show $ mdl name $ (mdlBlocks $ blocks net) ++ (mdlLines $ nets net)
   where
   vars = stmtVars stmt
@@ -147,10 +150,17 @@ codeMdl name stmt = do
     mapM_ output $ zip vars inputs
 
   input :: VarInfo -> Net Name
-  input (input, path, const) = do
-    a <- if input then block' (pathName path) (Inport const) else block $ UnitDelay const
-    updateEnv path a
-    return a
+  input (input, path, const) = if input
+    then do
+      a <- block' (pathName path) (Inport const)
+      updateEnv path a
+      return a
+    else do
+      a <- block $ UnitDelay const
+      b <- block $ Cast $ constType const
+      net a (b, 0)
+      updateEnv path b
+      return a
   
   output :: (VarInfo, Name) -> Net ()
   output ((True, _, _), _) = return ()
@@ -159,15 +169,6 @@ codeMdl name stmt = do
     src <- getNet path
     net src (a, 0)
     net src (delay, 0)
-
--- A switch block.
-switch :: Name -> Name -> Name -> Net Name
-switch a b c = do
-  name <- block Mux'
-  net a (name, 0)
-  net b (name, 1)
-  net c (name, 2)
-  return name
 
 newName :: Net Name
 newName = do
@@ -205,6 +206,10 @@ getNet path = do
   net <- get
   return $ env net !! (fromJust $ elemIndex path $ vars net)
 
+getPathName :: Net Name
+getPathName = do
+  net <- get
+  return $ pathName $ path net
 
 -- Elaborate netlist.
 elaborate :: Statement -> Net ()
@@ -235,14 +240,34 @@ elaborate a = case a of
     mergeEnvs _ [] [] = return []
     mergeEnvs cond (a : as) (b : bs) = do
       names <- mergeEnvs cond as bs
-      name <- if a == b then return a else switch cond a b
+      name <- if a == b then return a else do
+        switch <- block Mux'
+        net a    (switch, 0)
+        net cond (switch, 1)
+        net b    (switch, 2)
+        return switch
       return $ name : names
     mergeEnvs _ _ _ = error "unbalanced environments"
 
   Sequence a b    -> elaborate a >> elaborate b
-  Theorem _ _ _ _ -> return ()
-  Assume _        -> return ()
-  Label _ a       -> elaborate a
+
+  Theorem _ _ _ a -> do
+    a <- evalExpr a
+    name <- getPathName
+    assert <- block' name Assertion
+    net a (assert, 0)
+
+  Assume a -> do
+    a <- evalExpr a
+    name <- getPathName
+    assert <- block' name Assertion
+    net a (assert, 0)
+
+  Label name a -> do
+    modify $ \ net -> net { path = path net ++ [name] }
+    elaborate a
+    modify $ \ net -> net { path = init $ path net }
+
   Null            -> return ()
 
 evalExpr :: E a -> Net Name
@@ -251,9 +276,15 @@ evalExpr a = case a of
   Const a   -> block $ Const' $ const' a
   Add a b   -> f2 Add' a b
   Sub a b   -> f2 Sub' a b
-  Mul a b   -> f1 (Mul' $ const' b) a
-  Div a b   -> f1 (Div' $ const' b) a
-  Mod a b   -> f1 (Mod' b) a
+  Mul a b   -> do
+    b <- block $ Const' $ const' b
+    f2' Mul' a b
+  Div a b   -> do
+    b <- block $ Const' $ const' b
+    f2' Div' a b
+  Mod a b   -> do
+    b <- block $ Const' $ const' b
+    f2' Mod' a b
   Not a     -> f1 Not' a
   And a b   -> f2 And' a b
   Or  a b   -> f2 Or'  a b
@@ -262,7 +293,7 @@ evalExpr a = case a of
   Gt  a b   -> f2 Gt'  a b
   Le  a b   -> f2 Le'  a b
   Ge  a b   -> f2 Ge'  a b
-  Mux a b c -> f3 Mux' a b c
+  Mux a b c -> f3 Mux' b a c
   where
   f1 :: Block -> E a -> Net Name
   f1 b a1 = do
@@ -275,6 +306,14 @@ evalExpr a = case a of
   f2 b a1 a2 = do
     a1 <- evalExpr a1
     a2 <- evalExpr a2
+    b  <- block b
+    net a1 (b, 0)
+    net a2 (b, 1)
+    return b
+
+  f2' :: Block -> E a -> Name -> Net Name
+  f2' b a1 a2 = do
+    a1 <- evalExpr a1
     b  <- block b
     net a1 (b, 0)
     net a2 (b, 1)
@@ -316,9 +355,6 @@ mdl name blocks = "Library" :=
     ]
   ]
 
-mdlBlocks :: [(Name, Block)] -> [Mdl]
-mdlBlocks blocks = [] --XXX
-
 mdlLines :: [(Name, (Name, Int))] -> [Mdl]
 mdlLines nets = map branch branches
   where
@@ -332,4 +368,56 @@ mdlLines nets = map branch branches
     where
     dests' = [ ["DstBlock" :- dest, "DstPort" :- show $ port + 1] | (dest, port) <- dests ]
 
+mdlBlocks :: [(Name, Block)] -> [Mdl]
+mdlBlocks blocks = map (port "Inport") inputs ++ map blk others ++ map (port "Outport") outputs
+  where
+  inputs  = zip [1 ..] $ sortBy (\ (a, _) (b, _) -> compare a b) [ (name, constType init) | (name, Inport  init) <- blocks ]
+  outputs = zip [1 ..] $ sortBy (\ (a, _) (b, _) -> compare a b) [ (name, constType init) | (name, Outport init) <- blocks ]
+  others  = [ (name, block) | (name, block) <- blocks, not $ isPort block ]
+  port :: String -> (Int, (Name, String)) -> Mdl
+  port direction (port, (name, typ)) = mdlBlock direction name
+    [ "Port" :- show port
+    , "DataType" :- typ
+    ]
+  isPort :: Block -> Bool
+  isPort (Inport  _) = True
+  isPort (Outport _) = True
+  isPort _           = False
+
+mdlBlock :: String -> Name -> [Mdl] -> Mdl
+mdlBlock blockType name fields = "Block" :=
+  [ "BlockType" :- blockType
+  , "Name"      :- name
+  ] ++ fields
+
+constType :: Const -> String
+constType a = case a of
+  Bool  _ -> "boolean"
+  Int   _ -> "int32"
+  Float _ -> "single"
+
+blk :: (Name, Block) -> Mdl
+blk (name, a) = case a of
+  Inport  _ -> undefined
+  Outport _ -> undefined
+  UnitDelay init -> f "UnitDelay"          ["X0" :- showConst init, "SampleTime" :- "-1"]
+  Cast t         -> f "DataTypeConversion" ["OutDataTypeMode" :- t]
+  Assertion      -> f "Assertion"          ["StopWhenAssertionFail" :- "off", "SampleTime" :- "-1", "Enabled" :- "on"]
+  Const' c       -> f "Constant"           ["Value" :- showConst c, "OutDataTypeMode" :- constType c]
+  Add'           -> f "Sum"                ["Inputs" :- "++"]
+  Sub'           -> f "Sum"                ["Inputs" :- "+-"]
+  Mul'           -> f "Product"            ["Inputs" :- "**"]
+  Div'           -> f "Product"            ["Inputs" :- "*/"]
+  Mod'           -> f "Math"               ["Operator" :- "mod"]
+  Not'           -> f "Logic"              ["Operator" :- "NOT", "Inputs" :- "1"]
+  And'           -> f "Logic"              ["Operator" :- "AND", "Inputs" :- "2"]
+  Or'            -> f "Logic"              ["Operator" :- "OR",  "Inputs" :- "2"]
+  Eq'            -> f "RelationalOperator" ["Operator" :- "==", "LogicOutDataTypeMode" :- "boolean"]
+  Lt'            -> f "RelationalOperator" ["Operator" :- "<" , "LogicOutDataTypeMode" :- "boolean"]
+  Gt'            -> f "RelationalOperator" ["Operator" :- ">" , "LogicOutDataTypeMode" :- "boolean"]
+  Le'            -> f "RelationalOperator" ["Operator" :- "<=", "LogicOutDataTypeMode" :- "boolean"]
+  Ge'            -> f "RelationalOperator" ["Operator" :- ">=", "LogicOutDataTypeMode" :- "boolean"]
+  Mux'           -> f "Switch"             ["Criteria" :- "u2 ~= 0"]
+  where
+  f typ args = mdlBlock typ name args
 
