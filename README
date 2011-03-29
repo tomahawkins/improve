@@ -8,6 +8,11 @@ ImProve generates C code and Simulink models for implementation.
 
 Release Notes:
 
+0.3.1    03/28/11
+
+- Simulink remove null effect optimization.
+- Haddock documentation.
+
 0.3.0    03/28/11
 
 - Simulink model generation.

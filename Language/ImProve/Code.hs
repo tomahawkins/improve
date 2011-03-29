@@ -136,7 +136,7 @@ data Netlist = Netlist
 -- Simulink generation.
 codeMdl :: Name -> Statement -> IO ()
 codeMdl name stmt = do
-  net <- execStateT all (Netlist 0 [] paths env [] [])
+  net <- execStateT all (Netlist 0 [] paths env [] []) >>= return . removeNullEffect
   writeFile (name ++ ".mdl") $ show $ mdl name $ (mdlBlocks $ blocks net) ++ (mdlLines $ nets net)
   where
   vars = stmtVars stmt
@@ -420,4 +420,17 @@ blk (name, a) = case a of
   Mux'           -> f "Switch"             ["Criteria" :- "u2 ~= 0"]
   where
   f typ args = mdlBlock typ name args
+
+isSrc :: Block -> Bool
+isSrc a = case a of
+  Outport _ -> False
+  Assertion -> False
+  _         -> True
+
+removeNullEffect :: Netlist -> Netlist
+removeNullEffect net = if null unused then net else removeNullEffect net { blocks = blocks', nets = nets' }
+  where
+  unused = [ name | (name, block) <- blocks net, isSrc block, not $ any (\ (n, _) -> name == n) $ nets net ]
+  blocks' = [ (name, block) | (name, block) <- blocks net, not $ elem name unused ]
+  nets' = [ (src, (dest, port)) | (src, (dest, port)) <- nets net, not $ elem dest unused ]
 

@@ -518,13 +518,13 @@ a ==> s = Case $ ifelse a s
 
 -- | Verify a program.
 --
--- > verify pathToYices maxK program
+-- > verify pathToYices program
 verify :: FilePath -> Stmt () -> IO ()
 verify yices program = V.verify yices stmt
   where
   (_, _, stmt) = evalStmt 0 [] program
 
--- | Generate C code.
+-- | Generate C and Simulink code.
 code :: Name -> Stmt () -> IO ()
 code name program = C.code name stmt
   where
