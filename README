@@ -8,6 +8,11 @@ ImProve generates C code and Simulink models for implementation.
 
 Release Notes:
 
+0.3.2    ???
+
+- Applies assumptions in all transitions in inductive step (instead of just at the begining).
+- Removed hidden step 1.
+
 0.3.1    03/28/11
 
 - Simulink remove null effect optimization.

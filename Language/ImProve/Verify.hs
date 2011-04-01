@@ -53,22 +53,22 @@ data Result = Pass | Fail [ExpY] | Problem
 -- | k-induction.
 check :: FilePath -> Name -> Int -> [Int] -> Statement -> Env -> Int -> Y ()
 check yices name theorem lemmas program env0 k = do
-  replicateM_ k step
+  mapM_ step [0 .. k - 1]
   resultBasis <- checkBasis yices program env0
   case resultBasis of
-    Fail a  -> liftIO (printf "FAILED: disproved basis (see %s.trace)\n" name) >> writeTrace False name a
+    Fail a  -> liftIO (printf "FAILED: disproved basis (see %s.trace)\n" name) >> writeTrace name a
     Problem -> error "Verify.check1"
     Pass -> do
-      step
+      step k
       resultStep <- checkStep yices
       case resultStep of
-        Fail a  -> liftIO (printf "inconclusive: unable to proved step (see %s.trace)\n" name) >> writeTrace True name a
+        Fail a  -> liftIO (printf "inconclusive: unable to proved step (see %s.trace)\n" name) >> writeTrace name a
         Problem -> error "Verify.check2"
         Pass    -> liftIO $ printf "proved\n"
   where
-  step :: Y ()
-  step = do
-      addTrace $ Step' 0
+  step :: Int -> Y ()
+  step i = do
+      addTrace $ Step' i
       sequence_ [ getVar' a >>= addTrace . State' (pathName path) | a@(input, path, _) <- sortBy f $ stmtVars program, not input ]
       sequence_ [ addVar' a >>= addTrace . Input' (pathName path) | a@(input, path, _) <- sortBy f $ stmtVars program,     input ]
       evalStmt theorem lemmas (LitB True) program
@@ -79,12 +79,14 @@ checkStep :: FilePath -> Y Result
 checkStep yices = do
   env <- get
   r <- liftIO $ quickCheckY' yices [] $ reverse (cmds env) ++ [assert env] ++ [CHECK]
+  --liftIO $ writeFile "log.txt" $ unlines $ map show $ reverse (cmds env) ++ [assert env] ++ [CHECK]
   return $ result r
   where
   assert env = case asserts env of
-    []  -> error "unexpected: induction step needs at least 2 steps, got 0"
-    [_] -> error "unexpected: induction step needs at least 2 steps, got 1"
-    a -> ASSERT $ AND [last a, NOT $ head a]
+    []     -> error "unexpected: induction step needs at least 1 step, got 0"
+    [_]    -> error "unexpected: induction step needs at least 2 steps, got 1"
+    a : b  -> ASSERT $ AND $ NOT a : b
+    --a : b  -> ASSERT $ AND $ [NOT a, last b] --[last a, NOT $ head a] --XXX
 
 -- | Check induction basis.
 checkBasis :: FilePath -> Statement -> Env -> Y Result
@@ -292,11 +294,10 @@ getVar' v = do
   env <- get
   return $ var env $ v
 
-writeTrace :: Bool -> String -> [ExpY] -> Y ()
-writeTrace dropFirst name table' = do
+writeTrace :: String -> [ExpY] -> Y ()
+writeTrace name table' = do
   env <- get
-  let trace'' = reverse $ trace env
-      trace' = reorderSteps 1 $ if dropFirst then dropWhile notStep $ tail trace'' else trace''
+  let trace' = reverse $ trace env
       format path indent = printf (printf "%%-%ds : %%s" $ maximum' $ 12 : map maxLabelWidth trace') (intercalate "." path) indent
       varFormat :: Name -> String
       varFormat = printf $ printf "%%-%ds" l
@@ -304,14 +305,6 @@ writeTrace dropFirst name table' = do
         l = maximum $ 0 : map length ([ n | State' n _ <- trace' ] ++ [ n | Input' n _ <- trace' ])
   liftIO $ writeFile (name ++ ".trace") $ concatMap (f varFormat format [] "") trace'
   where
-  notStep (Step' _) = False
-  notStep _ = True
-
-  reorderSteps :: Int -> [Trace] -> [Trace]
-  reorderSteps _ [] = []
-  reorderSteps n (Step' _ : a) = Step' n : reorderSteps (n + 1) a
-  reorderSteps n (a : b) = a : reorderSteps n b
-
   table = [ (n, if v then "true" else "false") | VarE n := LitB v <- table' ]
        ++ [ (n, show v) | VarE n := LitI v <- table' ]
        ++ [ (n, show v) | VarE n := LitR v <- table' ]
