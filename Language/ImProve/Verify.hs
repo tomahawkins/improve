@@ -86,7 +86,6 @@ checkStep yices = do
     []     -> error "unexpected: induction step needs at least 1 step, got 0"
     [_]    -> error "unexpected: induction step needs at least 2 steps, got 1"
     a : b  -> ASSERT $ AND $ NOT a : b
-    --a : b  -> ASSERT $ AND $ [NOT a, last b] --[last a, NOT $ head a] --XXX
 
 -- | Check induction basis.
 checkBasis :: FilePath -> Statement -> Env -> Y Result
