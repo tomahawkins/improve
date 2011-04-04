@@ -8,6 +8,11 @@ ImProve generates C code and Simulink models for implementation.
 
 Release Notes:
 
+0.3.3    ???
+
+- Added #ifdef __cplusplus to generated C header.
+- Fixed conditionals for assertions in Simulink generation.
+
 0.3.2    04/02/11
 
 - Apply lemmas in all inductive steps except the last (instead of just at the begining).

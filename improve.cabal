@@ -1,5 +1,5 @@
 name:    improve
-version: 0.3.2
+version: 0.3.3
 
 category: Language, Formal Methods, Embedded
 
@@ -31,6 +31,10 @@ library
     exposed-modules:
         Language.ImProve
         Language.ImProve.Code
+        Language.ImProve.Code.C
+        Language.ImProve.Code.Common
+        Language.ImProve.Code.Modelica
+        Language.ImProve.Code.Simulink
         Language.ImProve.Core
         Language.ImProve.Examples
         Language.ImProve.Tree

@@ -60,7 +60,7 @@ gcdMain = do
 
 -- | Build the gcdMain code (i.e. gcd.c, gcd.h).
 buildGCD :: IO ()
-buildGCD = code "gcd" gcdMain
+buildGCD = code C "gcd" gcdMain
 
 
 
@@ -176,13 +176,13 @@ verifyArbiters = do
 buildArbiters :: IO ()
 buildArbiters = do
   putStrLn "\nBuilding arbiter1 (arbiter1.c/h) ..."
-  code "arbiter1" $ arbiter "arbiter1" arbiter1
+  code C "arbiter1" $ arbiter "arbiter1" arbiter1
 
   putStrLn "\nBuilding arbiter2 (arbiter2.c/h) ..."
-  code "arbiter2" $ arbiter "arbiter2" arbiter2
+  code C "arbiter2" $ arbiter "arbiter2" arbiter2
 
   putStrLn "\nBuilding arbiter3 (arbiter3.c/h) ..."
-  code "arbiter3" $ arbiter "arbiter3" arbiter3
+  code C "arbiter3" $ arbiter "arbiter3" arbiter3
 
 -- | Run all examples.
 runAll :: IO ()

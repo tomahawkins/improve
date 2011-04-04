@@ -216,6 +216,7 @@ module Language.ImProve
   -- * Verification
   , verify
   -- * Code Generation
+  , C.Target (..)
   , code
   ) where
 
@@ -360,17 +361,8 @@ ref = Ref
 mux :: AllE a => E Bool -> E a -> E a -> E a
 mux = Mux
 
--- | Array index to a variable.
---(!) :: AllE a => A a -> E Int -> V a
---(!) a i = VArray a i
-
--- | Array index to an expression.
---(!.) :: AllE a => A a -> E Int -> E a
---(!.) a i = ref $ a ! i
-
--- | Labels a statement and creates a variable scope.
---   Labels are used in counter examples to trace the program execution.
---   And assertion names, and hence counter example trace file names, are produce from labels.
+-- | Labels a statement and creates a new variable scope.
+--   Labels are used in counter examples to help trace the program execution.
 (-|) :: Name -> Stmt a -> Stmt a
 name -| stmt = do
   (id, path0, stmt0) <- get
@@ -524,9 +516,9 @@ verify yices program = V.verify yices stmt
   where
   (_, _, stmt) = evalStmt 0 [] program
 
--- | Generate C and Simulink code.
-code :: Name -> Stmt () -> IO ()
-code name program = C.code name stmt
+-- | Generate code.
+code :: C.Target -> Name -> Stmt () -> IO ()
+code target name program = C.code target name stmt
   where
   (_, _, stmt) = evalStmt 0 [] program
 
