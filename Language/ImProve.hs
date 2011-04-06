@@ -462,14 +462,16 @@ instance Assign Bool  where a <== b = statement $ Assign a b
 instance Assign Int   where a <== b = statement $ Assign a b
 instance Assign Float where a <== b = statement $ Assign a b
 
--- | Declare an assumption condition is true.
---   Assumptions expressions must contain variables directly or indirectly related
---   to the assertion under verification, otherwise they will be ignored.
-assume :: Name -> E Bool -> Stmt ()
-assume name a = statement $ Label name $ Assume a
-
 -- | Theorem to be proven or used as lemmas to assist proofs of other theorems.
 data Theorem = Theorem' Int
+
+-- | Assume a condition is true.
+--   Assumptions are used as lemmas to other theorems.
+assume :: Name -> E Bool -> Stmt Theorem
+assume name a = do
+  (id, path, stmt) <- get
+  put (id + 1, path, Sequence stmt $ Label name $ Assume id a)
+  return $ Theorem' id
 
 -- | Defines a new theorem.
 --

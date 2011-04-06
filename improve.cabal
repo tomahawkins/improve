@@ -17,7 +17,7 @@ maintainer: Tom Hawkins <tomahawkins@gmail.com>
 license:      BSD3
 license-file: LICENSE
 
-homepage: http://tomahawkins.org
+homepage: http://github.com/tomahawkins/improve/wiki/ImProve
 
 build-type:    Simple
 cabal-version: >= 1.6

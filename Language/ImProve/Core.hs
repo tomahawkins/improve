@@ -108,7 +108,7 @@ data Statement where
   Branch   :: E Bool -> Statement -> Statement -> Statement
   Sequence :: Statement -> Statement -> Statement
   Theorem  :: Int -> Int -> [Int] -> E Bool -> Statement -- Theorem id k lemmas expr
-  Assume   :: E Bool -> Statement
+  Assume   :: Int -> E Bool -> Statement                 -- Assume id expr
   Label    :: Name -> Statement -> Statement
   Null     :: Statement
 
@@ -131,7 +131,7 @@ stmtVars a = case a of
   Branch a b c -> nub $ exprVars a ++ stmtVars b ++ stmtVars c
   Sequence a b -> nub $ stmtVars a ++ stmtVars b
   Theorem _ _ _ a -> exprVars a
-  Assume a     -> exprVars a
+  Assume  _ a     -> exprVars a
   Label  _ a   -> stmtVars a
   Null         -> []
 
@@ -162,7 +162,7 @@ theorems a = case a of
   Assign _ _   -> []
   Branch _ a b -> theorems a ++ theorems b
   Sequence a b -> theorems a ++ theorems b
-  Assume _     -> []
+  Assume _ _   -> []
   Label  _ a   -> theorems a
   Null         -> []
 

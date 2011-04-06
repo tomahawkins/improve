@@ -10,6 +10,8 @@ Release Notes:
 
 0.3.3    ???
 
+- 'assume' returns 'Theorem' types to act as lemmas to other theorems.
+  Assumptions are not longer applied program wide.
 - Added #ifdef __cplusplus to generated C header.
 - Fixed conditionals for assertions in Simulink generation.
 

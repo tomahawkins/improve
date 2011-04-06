@@ -122,9 +122,11 @@ evalStmt theorem lemmas enabled a = case a of
       put env { asserts = VarE b : asserts env }
       addTrace $ Assert' b
     | otherwise -> return ()
-  Assume a -> do
-    a <- evalExpr a
-    addCmd $ ASSERT (enabled :=> a)
+  Assume id a
+    | elem id lemmas -> do
+      a <- evalExpr a
+      addCmd $ ASSERT (enabled :=> a)
+    | otherwise -> return ()
   Branch a onTrue onFalse -> do
     a <- evalExpr a
     b <- newBoolVar

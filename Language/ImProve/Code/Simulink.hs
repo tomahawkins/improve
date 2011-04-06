@@ -94,7 +94,7 @@ lowerConditionals cond a = case a of
   Branch   a b c   -> Branch a (lowerConditionals (And cond a) b) (lowerConditionals (And cond $ Not a) c)
   Sequence a b     -> Sequence (lowerConditionals cond a) (lowerConditionals cond b)
   Theorem  a b c d -> Theorem a b c $ Or (Not cond) d
-  Assume   a       -> Assume $ Or (Not cond) a
+  Assume   i a     -> Assume i $ Or (Not cond) a
   Label    a b     -> Label a $ lowerConditionals cond b
   Null             -> Null
 
@@ -185,7 +185,7 @@ evalStmt a = case a of
     assert <- block' name Assertion
     net a (assert, 0)
 
-  Assume a -> do
+  Assume _ a -> do
     a <- evalExpr a
     name <- getPathName
     assert <- block' name Assertion
