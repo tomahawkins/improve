@@ -1,4 +1,9 @@
-module Language.ImProve.Code.Simulink (codeSimulink) where
+module Language.ImProve.Code.Simulink
+  ( codeSimulink
+  , Netlist (..)
+  , Block   (..)
+  , netlist
+  ) where
 
 import Control.Monad.State
 import Data.List
@@ -51,9 +56,13 @@ data Netlist = Netlist
 
 -- Simulink generation.
 codeSimulink :: Name -> Statement -> IO ()
-codeSimulink name stmt' = do
-  net <- execStateT all (Netlist 0 [] paths env [] []) >>= return . removeNullEffect
+codeSimulink name stmt = do
+  net <- netlist stmt
   writeFile (name ++ ".mdl") $ show $ mdl name $ (mdlBlocks $ blocks net) ++ (mdlLines $ nets net)
+
+-- | Builds a netlist.
+netlist :: Statement -> IO Netlist
+netlist stmt' = execStateT all (Netlist 0 [] paths env [] []) >>= return . removeNullEffect
   where
   stmt = lowerConditionals (Const True) stmt'
   vars = stmtVars stmt
