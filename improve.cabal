@@ -37,6 +37,7 @@ library
         Language.ImProve.Code.Simulink
         Language.ImProve.Core
         Language.ImProve.Examples
+        Language.ImProve.Path
         Language.ImProve.Tree
         Language.ImProve.Verify
 

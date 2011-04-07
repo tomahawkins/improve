@@ -218,6 +218,8 @@ module Language.ImProve
   -- * Code Generation
   , C.Target (..)
   , code
+  -- * General Analysis
+  , analyze
   ) where
 
 import Control.Monad
@@ -514,13 +516,15 @@ a ==> s = Case $ ifelse a s
 --
 -- > verify pathToYices program
 verify :: FilePath -> Stmt () -> IO ()
-verify yices program = V.verify yices stmt
-  where
-  (_, _, stmt) = evalStmt 0 [] program
+verify yices program = analyze (V.verify yices) program
 
 -- | Generate code.
 code :: C.Target -> Name -> Stmt () -> IO ()
-code target name program = C.code target name stmt
+code target name program = analyze (C.code target name) program
+
+-- | Generic program analysis.
+analyze :: (Statement -> IO a) -> Stmt () -> IO a
+analyze f program = f stmt
   where
   (_, _, stmt) = evalStmt 0 [] program
 

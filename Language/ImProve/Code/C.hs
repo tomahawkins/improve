@@ -75,7 +75,7 @@ indent' a = case lines a of
   (a:b) -> a ++ "\n" ++ indent (unlines b)
 
 codeVariables :: Bool -> (Tree Name (Bool, Path, Const)) -> String
-codeVariables define a = (if define then "" else "extern ") ++ init (init (f1 a)) ++ (if define then " =\n    " ++ f2 a else "") ++ ";\n"
+codeVariables define a = (if define then "" else "extern ") ++ init (init (f1 a)) ++ (if define then " =\n\t" ++ f2 a else "") ++ ";\n"
   where
   f1 a = case a of
     T.Branch name items -> "struct {  /* " ++ name ++ " */\n" ++ indent (concatMap f1 items) ++ "} " ++ name ++ ";\n"
