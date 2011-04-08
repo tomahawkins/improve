@@ -1,3 +1,5 @@
+# ImProve
+
 ImProve is an imperative programming language embedded in Haskell for
 high assurance applications.  ImProve uses infinite state, unbounded
 model checking to verify programs adhere to specifications.
@@ -7,7 +9,7 @@ ImProve compiles to C, Simulink, and Modelica for implementation
 and system simulation.
 
 
-Release Notes:
+# Release Notes
 
 0.3.3    04/07/11
 
