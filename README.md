@@ -1,12 +1,18 @@
 # ImProve
 
-ImProve is an imperative programming language embedded in [[Haskell|http://haskell.org/]] for
+ImProve is an imperative programming language embedded in [Haskell](http://haskell.org/) for
 high assurance applications.  ImProve uses infinite state, unbounded
 model checking to verify programs adhere to specifications.
-[[Yices|http://yices.csl.sri.com/]] (required) is the backend SMT solver.
+[Yices](http://yices.csl.sri.com/) (required) is the backend SMT solver.
 
-ImProve compiles to C, [[Simulink|http://www.mathworks.com/products/simulink/]], and [[Modelica|http://www.modelica.org/]]
+ImProve compiles to C, [Simulink](http://www.mathworks.com/products/simulink/), and [Modelica](http://www.modelica.org/)
 for implementation and system simulation.
+
+- [ImProve Home](http://github.com/tomahawkins/improve/wiki/ImProve)
+- [ImProve on Hackage](http://hackage.haskell.org/package/improve)
+
+# Links
+
 
 
 # Release Notes
