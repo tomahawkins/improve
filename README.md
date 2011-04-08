@@ -8,12 +8,10 @@ model checking to verify programs adhere to specifications.
 ImProve compiles to C, [Simulink](http://www.mathworks.com/products/simulink/), and [Modelica](http://www.modelica.org/)
 for implementation and system simulation.
 
-- [ImProve Home](http://github.com/tomahawkins/improve/wiki/ImProve)
-- [ImProve on Hackage](http://hackage.haskell.org/package/improve)
+## Links
 
-# Links
-
-
+- [ImProve Wiki](http://github.com/tomahawkins/improve/wiki/ImProve)
+- [ImProve at Hackage](http://hackage.haskell.org/package/improve)
 
 # Release Notes
 
