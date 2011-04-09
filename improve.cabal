@@ -1,5 +1,5 @@
 name:    improve
-version: 0.3.3
+version: 0.3.4
 
 category: Language, Formal Methods, Embedded
 
@@ -41,7 +41,7 @@ library
         Language.ImProve.Tree
         Language.ImProve.Verify
 
-    extensions: GADTs, FlexibleInstances, TypeSynonymInstances
+    extensions: GADTs, FlexibleInstances, TypeSynonymInstances, UndecidableInstances
 
     ghc-options: -W
 

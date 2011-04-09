@@ -10,10 +10,14 @@ for implementation and system simulation.
 
 ## Links
 
-- [ImProve Wiki](http://github.com/tomahawkins/improve/wiki/ImProve)
-- [ImProve at Hackage](http://hackage.haskell.org/package/improve)
+- [ImProve Homepage](http://github.com/tomahawkins/improve/wiki/ImProve)
+- [ImProve Hackage Library](http://hackage.haskell.org/package/improve)
 
 # Release Notes
+
+0.3.4    ???
+
+- Exported var and zero.
 
 0.3.3    04/07/11
 

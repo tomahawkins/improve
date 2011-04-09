@@ -154,6 +154,7 @@ module Language.ImProve
   , true
   , false
   , constant
+  , zero
   -- ** Variable Reference
   , ref
   -- ** Logical Operations
@@ -192,6 +193,8 @@ module Language.ImProve
   -- ** Variable Hierarchical Scope and Statement Labeling 
   , (-|)
   -- ** Variable Declarations
+  , var
+  , var'
   , bool
   , bool'
   , int
@@ -386,14 +389,22 @@ getPath = do
   (_, path, _) <- get
   return path
 
+-- | Generic variable declaration.
 var :: AllE a => Name -> a -> Stmt (V a)
 var name init = do
   path <- getPath
   return $ V False (path ++ [name]) init
 
+-- | Generic variable declaration and immediate assignment.
+var' :: AllE a => Name -> E a -> Stmt (E a)
+var' name value = do
+  a <- var name zero
+  a <== value
+  return $ ref a
+
 -- | Input variable declaration.  Input variables are initialized to 0.
 input  :: AllE a => (Name -> a -> Stmt (V a)) -> Path -> E a
-input f path = ref $ V True path $ zero f
+input _ path = ref $ V True path zero
 
 -- | Global variable declaration.
 global  :: AllE a => (Name -> a -> Stmt (V a)) -> Path -> a -> V a
@@ -458,11 +469,8 @@ statement a = Stmt $ \ (id, path, statement) -> ((), (id, path, Sequence stateme
 evalStmt :: Int -> [Name] -> Stmt () -> (Int, [Name], Statement)
 evalStmt id path (Stmt f) = snd $ f (id, path, Null)
 
-class Assign a where
-  (<==) :: V a -> E a -> Stmt ()
-instance Assign Bool  where a <== b = statement $ Assign a b
-instance Assign Int   where a <== b = statement $ Assign a b
-instance Assign Float where a <== b = statement $ Assign a b
+class Assign a where (<==) :: V a -> E a -> Stmt ()
+instance AllE a => Assign a where a <== b = statement $ Assign a b
 
 -- | Theorem to be proven or used as lemmas to assist proofs of other theorems.
 data Theorem = Theorem' Int

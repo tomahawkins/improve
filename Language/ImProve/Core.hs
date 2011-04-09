@@ -48,19 +48,19 @@ instance PathName (A a)   where pathName (A _ a _) = pathName a
 instance PathName VarInfo where pathName (_, path, _) = pathName path
 
 class Eq a => AllE a where
-  zero   :: (Name -> a -> m (V a)) -> a
+  zero   :: a
   const' :: a -> Const
 
 instance AllE Bool where
-  zero = const False
+  zero = False
   const' = Bool
 
 instance AllE Int where
-  zero = const 0
+  zero = 0
   const' = Int
   
 instance AllE Float where
-  zero = const 0
+  zero = 0
   const' = Float
 
 class    AllE a => NumE a
