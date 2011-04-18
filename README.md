@@ -5,7 +5,9 @@ high assurance applications.  ImProve uses infinite state, unbounded
 model checking to verify programs adhere to specifications.
 [Yices](http://yices.csl.sri.com/) (required) is the backend SMT solver.
 
-ImProve compiles to C, [Simulink](http://www.mathworks.com/products/simulink/), and [Modelica](http://www.modelica.org/)
+ImProve compiles to C, Ada,
+[Simulink](http://www.mathworks.com/products/simulink/),
+and [Modelica](http://www.modelica.org/)
 for implementation and system simulation.
 
 ## Links
@@ -15,8 +17,9 @@ for implementation and system simulation.
 
 # Release Notes
 
-0.3.4    ???
+0.3.4    04/18/11
 
+- Ada code generation.
 - Exported var and zero.
 
 0.3.3    04/07/11

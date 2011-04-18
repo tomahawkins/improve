@@ -9,7 +9,7 @@ description:
   ImProve is an imperative programming language for high assurance applications.
   ImProve uses infinite state, unbounded model checking to verify programs adhere
   to specifications.  Yices (required) is the backend SMT solver.
-  ImProve compiles to C, Simulink, and Modelica.
+  ImProve compiles to C, Ada, Simulink, and Modelica.
 
 author:     Tom Hawkins <tomahawkins@gmail.com>
 maintainer: Tom Hawkins <tomahawkins@gmail.com>
@@ -31,12 +31,12 @@ library
     exposed-modules:
         Language.ImProve
         Language.ImProve.Code
+        Language.ImProve.Code.Ada
         Language.ImProve.Code.C
         Language.ImProve.Code.Common
         Language.ImProve.Code.Modelica
         Language.ImProve.Code.Simulink
         Language.ImProve.Core
-        Language.ImProve.Examples
         Language.ImProve.Path
         Language.ImProve.Tree
         Language.ImProve.Verify
