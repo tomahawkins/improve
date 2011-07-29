@@ -57,7 +57,7 @@ switch (a) {              'case_' $ do
 /Assertion Statements/
 
 @
-assert(condition);        'theorem' name k lemmas condition
+assert(condition);        'assert' name k condition
 @
 
 /Statement Labels/
@@ -148,7 +148,6 @@ module Language.ImProve
   , AllE
   , NumE
   , Name
-  , Theorem
   -- * Expressions
   -- ** Constants
   , true
@@ -213,9 +212,9 @@ module Language.ImProve
   -- ** Incrementing and decrementing.
   , incr
   , decr
-  -- ** Assumptions and theorems.
+  -- ** Assumptions and assertions.
   , assume
-  , theorem
+  , assert
   -- * Verification
   , verify
   -- * Code Generation
@@ -472,27 +471,22 @@ evalStmt id path (Stmt f) = snd $ f (id, path, Null)
 class Assign a where (<==) :: V a -> E a -> Stmt ()
 instance AllE a => Assign a where a <== b = statement $ Assign a b
 
--- | Theorem to be proven or used as lemmas to assist proofs of other theorems.
-data Theorem = Theorem' Int
-
 -- | Assume a condition is true.
---   Assumptions are used as lemmas to other theorems.
-assume :: Name -> E Bool -> Stmt Theorem
+--   Assumptions are used as lemmas to other assertions.
+assume :: Name -> E Bool -> Stmt ()
 assume name a = do
   (id, path, stmt) <- get
   put (id + 1, path, Sequence stmt $ Label name $ Assume id a)
-  return $ Theorem' id
 
--- | Defines a new theorem.
+-- | Defines a new assertion.
 --
--- > theorem name k lemmas proposition
-theorem :: Name -> Int -> [Theorem] -> E Bool -> Stmt Theorem
-theorem name k lemmas proposition
+-- > assert name k proposition
+assert :: Name -> Int -> E Bool -> Stmt ()
+assert name k proposition
   | k < 1 = error $ "k-induction search depth must be > 0: " ++ name ++ " k = " ++ show k
   | otherwise = do
     (id, path, stmt) <- get
-    put (id + 1, path, Sequence stmt $ Label name $ Theorem id k [ i | Theorem' i <- lemmas ] proposition)
-    return $ Theorem' id
+    put (id + 1, path, Sequence stmt $ Label name $ Assert id k proposition)
 
 -- | Conditional if-else.
 ifelse :: E Bool -> Stmt () -> Stmt () -> Stmt ()

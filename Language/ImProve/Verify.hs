@@ -12,13 +12,13 @@ import Language.ImProve.Core
 
 -- | Verify a program with k-induction.
 verify :: FilePath -> Statement -> IO ()
-verify yices program = mapM_ (proveTheorem yices format program) $ theorems program
+verify yices program = proveAssertions yices format program [] $ assertions program
   where
-  format = "%-" ++ show (maximum' [ length $ pathName $ theoremPath t program | (t, _, _, _) <- theorems program ]) ++ "s    "
+  format = "%-" ++ show (maximum' [ length $ pathName $ assertionPath t program | (t, _, _) <- assertions program ]) ++ "s    "
 
--- | Path of a theorem.
-theoremPath :: Int -> Statement -> Path
-theoremPath t stmt = case f stmt of
+-- | Path of an assertion.
+assertionPath :: Int -> Statement -> Path
+assertionPath t stmt = case f stmt of
   Nothing -> error $ "theorem not found: " ++ show t
   Just p  -> p
   where
@@ -29,7 +29,7 @@ theoremPath t stmt = case f stmt of
     _ -> Nothing
   f :: Statement -> Maybe Path
   f a = case a of
-    Theorem t' _ _ _ | t == t' -> Just []
+    Assert t' _ _ | t == t' -> Just []
     Sequence a b -> pair a b
     Branch _ a b -> pair a b
     Label name a -> do
@@ -37,34 +37,42 @@ theoremPath t stmt = case f stmt of
       return $ name : path
     _ -> Nothing
 
--- | Prove a single theorem.
-proveTheorem :: FilePath -> String -> Statement -> (Int, Int, [Int], E Bool) -> IO ()
-proveTheorem yices format program (id, k, lemmas, _) = do
+proveAssertions :: FilePath -> String -> Statement -> [Int] -> [(Int, Int, E Bool)] -> IO ()
+proveAssertions _ _ _ _ [] = return ()
+proveAssertions yices format program lemmas ((id, k, _) : rest) = do
   printf format name
   hFlush stdout
   env0 <- initEnv program
-  execStateT (check yices name id lemmas program env0 k) env0
-  return ()
+  pass <- evalStateT (check yices name id lemmas program env0 k) env0
+  proveAssertions yices format program (if pass then id : lemmas else lemmas) rest
   where
-  name = pathName $ theoremPath id program
+  name = pathName $ assertionPath id program
 
 data Result = Pass | Fail [ExpY] | Problem
 
 -- | k-induction.
-check :: FilePath -> Name -> Int -> [Int] -> Statement -> Env -> Int -> Y ()
+check :: FilePath -> Name -> Int -> [Int] -> Statement -> Env -> Int -> Y Bool
 check yices name theorem lemmas program env0 k = do
   mapM_ step [0 .. k - 1]
   resultBasis <- checkBasis yices program env0
   case resultBasis of
-    Fail a  -> liftIO (printf "FAILED: disproved basis (see %s.trace)\n" name) >> writeTrace name a
+    Fail a  -> do
+      liftIO (printf "FAILED: disproved basis (see %s.trace)\n" name)
+      writeTrace name a
+      return False
     Problem -> error "Verify.check1"
     Pass -> do
       step k
       resultStep <- checkStep yices
       case resultStep of
-        Fail a  -> liftIO (printf "inconclusive: unable to proved step (see %s.trace)\n" name) >> writeTrace name a
+        Fail a  -> do
+	  liftIO (printf "inconclusive: unable to proved step (see %s.trace)\n" name)
+	  writeTrace name a
+	  return False
         Problem -> error "Verify.check2"
-        Pass    -> liftIO $ printf "proved\n"
+        Pass    -> do
+	  liftIO $ printf "proved\n"
+	  return True
   where
   step :: Int -> Y ()
   step i = do
@@ -110,7 +118,7 @@ evalStmt theorem lemmas enabled a = case a of
   Null -> return ()
   Sequence a b -> evalStmt theorem lemmas enabled a >> evalStmt theorem lemmas enabled b
   Assign a b -> assign a b
-  Theorem id _ _ a
+  Assert id _ a
     | elem id lemmas -> do
       a <- evalExpr a
       addCmd $ ASSERT (enabled :=> a)

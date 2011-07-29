@@ -14,7 +14,7 @@ paths a = case a of
   Assign _ _      -> 1
   Branch _ a b    -> paths a + paths b
   Sequence a b    -> paths a * paths b
-  Theorem _ _ _ _ -> 1
+  Assert _ _ _ -> 1
   Assume  _ _     -> 1
   Label  _ a      -> paths a
   Null            -> 1

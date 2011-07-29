@@ -14,7 +14,7 @@ module Language.ImProve.Core
   , varInfo
   , stmtVars
   , arrayLength
-  , theorems
+  , assertions
   ) where
 
 import Data.List
@@ -107,8 +107,8 @@ data Statement where
   Assign   :: AllE a => V a -> E a -> Statement
   Branch   :: E Bool -> Statement -> Statement -> Statement
   Sequence :: Statement -> Statement -> Statement
-  Theorem  :: Int -> Int -> [Int] -> E Bool -> Statement -- Theorem id k lemmas expr
-  Assume   :: Int -> E Bool -> Statement                 -- Assume id expr
+  Assert   :: Int -> Int -> E Bool -> Statement -- Assert id k expr
+  Assume   :: Int -> E Bool -> Statement        -- Assume id expr
   Label    :: Name -> Statement -> Statement
   Null     :: Statement
 
@@ -127,13 +127,13 @@ varInfo a = case a of
 -- | Variables in a program.
 stmtVars :: Statement -> [VarInfo]
 stmtVars a = case a of
-  Assign a b   -> nub $ varInfo a : exprVars b
-  Branch a b c -> nub $ exprVars a ++ stmtVars b ++ stmtVars c
-  Sequence a b -> nub $ stmtVars a ++ stmtVars b
-  Theorem _ _ _ a -> exprVars a
-  Assume  _ a     -> exprVars a
-  Label  _ a   -> stmtVars a
-  Null         -> []
+  Assign a b    -> nub $ varInfo a : exprVars b
+  Branch a b c  -> nub $ exprVars a ++ stmtVars b ++ stmtVars c
+  Sequence a b  -> nub $ stmtVars a ++ stmtVars b
+  Assert  _ _ a -> exprVars a
+  Assume  _ a   -> exprVars a
+  Label  _ a    -> stmtVars a
+  Null          -> []
 
 -- | Variables in an expression.
 exprVars :: E a -> [VarInfo]
@@ -155,14 +155,14 @@ exprVars a = case a of
   Ge  a b   -> exprVars a ++ exprVars b
   Mux a b c -> exprVars a ++ exprVars b ++ exprVars c
 
--- | Theorems in a program.
-theorems :: Statement -> [(Int, Int, [Int], E Bool)]
-theorems a = case a of
-  Theorem id k lemmas expr -> [(id, k, lemmas, expr)]
+-- | Assertions in a program.
+assertions :: Statement -> [(Int, Int, E Bool)]
+assertions a = case a of
+  Assert id k expr -> [(id, k, expr)]
   Assign _ _   -> []
-  Branch _ a b -> theorems a ++ theorems b
-  Sequence a b -> theorems a ++ theorems b
+  Branch _ a b -> assertions a ++ assertions b
+  Sequence a b -> assertions a ++ assertions b
   Assume _ _   -> []
-  Label  _ a   -> theorems a
+  Label  _ a   -> assertions a
   Null         -> []
 

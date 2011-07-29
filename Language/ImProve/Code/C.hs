@@ -41,8 +41,8 @@ codeStmt name path a = case a of
   Branch a b Null -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt name path b) ++ "}\n"
   Branch a b c    -> "if (" ++ codeExpr a ++ ") {\n" ++ indent (codeStmt name path b) ++ "}\nelse {\n" ++ indent (codeStmt name path c) ++ "}\n"
   Sequence a b -> codeStmt name path a ++ codeStmt name path b
-  Theorem _ _ _ a -> "assert((" ++ show (pathName path) ++ ", " ++ codeExpr a ++ "));\n"
-  Assume _ a -> "assert((" ++ show (pathName path) ++ ", " ++ codeExpr a ++ "));\n"
+  Assert _ _ a -> "assert((" ++ show (pathName path) ++ ", " ++ codeExpr a ++ "));\n"
+  Assume _ a   -> "assert((" ++ show (pathName path) ++ ", " ++ codeExpr a ++ "));\n"
   Label name' a -> "/*" ++ name' ++ "*/\n" ++ indent (codeStmt name (path ++ [name']) a)
   Null -> ""
   where

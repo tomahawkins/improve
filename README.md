@@ -17,6 +17,10 @@ for implementation and system simulation.
 
 # Release Notes
 
+0.4.0    07/29/11
+
+- Automatic lemma inclusion.  Changed 'theorem' to 'assert'.  Removed 'Theorem' type.
+
 0.3.4    04/18/11
 
 - Ada code generation.

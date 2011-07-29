@@ -55,11 +55,11 @@ codeStmt name path a = case a of
   Assign a b -> name ++ "_Variables." ++ pathName a ++ " := " ++ codeExpr b ++ ";\n"
   Branch a b Null -> "if " ++ codeExpr a ++ " then\n" ++ indent (codeStmt name path b) ++ "end if;\n"
   Branch a b c    -> "if " ++ codeExpr a ++ " then\n" ++ indent (codeStmt name path b) ++ "\nelse\n" ++ indent (codeStmt name path c) ++ "end if;\n"
-  Sequence a b -> codeStmt name path a ++ codeStmt name path b
-  Theorem _ _ _ a -> "Assert(" ++ codeExpr a ++ ", " ++ show (pathName path) ++ ");\n"
+  Sequence a b    -> codeStmt name path a ++ codeStmt name path b
+  Assert _ _ a    -> "Assert(" ++ codeExpr a ++ ", " ++ show (pathName path) ++ ");\n"
   Assume _ a      -> "Assert(" ++ codeExpr a ++ ", " ++ show (pathName path) ++ ");\n"
-  Label name' a -> "-- " ++ name' ++ "\n" ++ indent (codeStmt name (path ++ [name']) a)
-  Null -> ""
+  Label name' a   -> "-- " ++ name' ++ "\n" ++ indent (codeStmt name (path ++ [name']) a)
+  Null            -> ""
   where
 
   codeExpr :: E a -> String
