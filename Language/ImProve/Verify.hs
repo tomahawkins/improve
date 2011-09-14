@@ -19,7 +19,7 @@ verify yices program = proveAssertions yices format program [] $ assertions prog
 -- | Path of an assertion.
 assertionPath :: Int -> Statement -> Path
 assertionPath t stmt = case f stmt of
-  Nothing -> error $ "theorem not found: " ++ show t
+  Nothing -> error $ "assertion not found: " ++ show t
   Just p  -> p
   where
   pair :: Statement -> Statement -> Maybe Path
@@ -331,8 +331,8 @@ writeTrace name table' = do
       Nothing -> ""
       Just value -> format path' indent ++ path ++ " <== " ++ value ++ "\n"
     Assert' var -> case lookup var table of
-      Just "true"  -> format path' indent ++ "theorem assertion passed\n"
-      Just "false" -> format path' indent ++ "theorem assertion FAILED\n"
+      Just "true"  -> format path' indent ++ "assertion passed\n"
+      Just "false" -> format path' indent ++ "assertion FAILED\n"
       _ -> ""
     Branch' cond onTrue onFalse -> case lookup cond table of
       Just "true"  -> format path' indent ++ "ifelse true:\n"  ++ concatMap (f varFormat format path' $ "    " ++ indent) onTrue
